@@ -7,7 +7,7 @@ Two independent retrieval paths run for every call and are then unioned:
       Hard exclusions: domain mismatch, context_state mismatch.
       Returns each matching rule together with a *det_score* (0..1).
 
-  Path B (semantic, opt-in via ``semantic_query``)
+  Path B (semantic, always active in parallel with Path A)
       Vector cosine similarity via the local ChromaDB index.
       Only applies domain exclusion — trigger keywords are irrelevant here.
       Returns each matching rule together with the actual *cosine score*.
@@ -39,6 +39,11 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _rule_key(rule: dict[str, Any]) -> str:
+    """Stable composite key: '<domain>::<rule_id>'.  Unique across all files."""
+    return f"{rule.get('domain', '')}::{rule.get('rule_id', '')}"
+
 
 def _normalize_kw(s: str) -> str:
     s = unicodedata.normalize("NFKD", s)
@@ -130,7 +135,9 @@ def _sem_candidates(
         logger.warning("semantic extras not installed — semantic path disabled")
         return []
 
-    rule_by_id = {r.get("rule_id"): r for r in rules}
+    # Build lookup by rule_id. Rule IDs must be globally unique across all
+    # knowledge files; the loader warns at startup when duplicates are detected.
+    rule_by_id: dict[str, dict[str, Any]] = {r.get("rule_id"): r for r in rules}
     try:
         hits: list[tuple[str, float]] = _search(
             semantic_query,
@@ -188,10 +195,14 @@ def filter_candidates(
 
     # --- Path A: deterministic ---
     det_results = _det_candidates(rules, observation_ids, query_kw, domain, context_state)
-    det_by_id: dict[str, float] = {r.get("rule_id"): score for r, score in det_results}
+    # Key by composite (domain::rule_id) — avoids last-write-wins collision when
+    # multiple knowledge files share the same rule_id across different domains.
+    det_by_key: dict[str, tuple[dict[str, Any], float]] = {
+        _rule_key(r): (r, score) for r, score in det_results
+    }
 
-    # --- Path B: semantic (opt-in) ---
-    sem_by_id: dict[str, float] = {}
+    # --- Path B: semantic (always active) ---
+    sem_by_key: dict[str, tuple[dict[str, Any], float]] = {}
     if semantic_query and index_dir is not None:
         sem_results = _sem_candidates(
             rules,
@@ -200,27 +211,29 @@ def filter_candidates(
             semantic_min_score,
             domain,
         )
-        sem_by_id = {r.get("rule_id"): score for r, score in sem_results}
+        sem_by_key = {_rule_key(r): (r, score) for r, score in sem_results}
 
-    # --- Merge: union of both paths ---
-    all_ids: set[str] = set(det_by_id) | set(sem_by_id)
-    rule_by_id = {r.get("rule_id"): r for r in rules}
+    # --- Merge: union of both paths, using the rule objects from the path that
+    #     found them (never a secondary rule_by_id lookup, which would collide). ---
+    all_keys: set[str] = set(det_by_key) | set(sem_by_key)
 
     candidates: list[dict[str, Any]] = []
-    for rule_id in all_ids:
-        rule = rule_by_id.get(rule_id)
-        if rule is None:
-            continue
+    for key in all_keys:
+        if key in det_by_key:
+            rule, det_score = det_by_key[key]
+        else:
+            rule, det_score = sem_by_key[key][0], 0.0
+        sem_score = sem_by_key[key][1] if key in sem_by_key else 0.0
         # Attach scores for compressor ranking (stripped before LLM injection)
-        rule["_det_score"] = det_by_id.get(rule_id, 0.0)
-        rule["_sem_score"] = sem_by_id.get(rule_id, 0.0)
+        rule["_det_score"] = det_score
+        rule["_sem_score"] = sem_score
         candidates.append(rule)
 
     logger.info(
         "candidate filter",
         total_rules=len(rules),
-        det_hits=len(det_by_id),
-        sem_hits=len(sem_by_id),
+        det_hits=len(det_by_key),
+        sem_hits=len(sem_by_key),
         candidates=len(candidates),
         domain=domain,
     )

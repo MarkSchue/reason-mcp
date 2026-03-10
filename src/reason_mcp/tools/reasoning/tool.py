@@ -104,7 +104,7 @@ def register(mcp: FastMCP) -> None:
         keywords: list[str] | None = None,
         top_k: int | None = None,
         min_relevance: float | None = None,
-        semantic_min_score: float = 0.75,
+        semantic_min_score: float = 0.45,
     ) -> dict[str, Any]:
         """
         Args:

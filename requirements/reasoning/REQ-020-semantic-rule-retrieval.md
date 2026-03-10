@@ -43,7 +43,10 @@ gates the other.  A rule found by either path is always included in the candidat
 
 ### AC-020-05 — Parallel union merge logic
 - A rule is included if it is found by the deterministic path (obs_match OR kw_match)
-  **OR** by the semantic path (cosine similarity ≥ `semantic_min_score`, default 0.75).
+  **OR** by the semantic path (cosine similarity ≥ `semantic_min_score`, default **0.45**).
+- The threshold default of 0.45 is calibrated for `paraphrase-multilingual-MiniLM-L12-v2`:
+  semantically related fact-rules typically score 0.45–0.75 with that model;
+  a threshold of 0.75 was empirically found to suppress all valid hits for short fact rules.
 - Rules found by both paths carry scores from both and rank higher.
 - Catch-all rules (no trigger criteria) are still included via the deterministic path.
 
@@ -58,6 +61,19 @@ gates the other.  A rule found by either path is always included in the candidat
 
 ### AC-020-08 — Optional dependency isolation
 - `sentence-transformers` and `chromadb` are declared under the `[semantic]` extras
+
+### AC-020-09 — Globally unique rule IDs
+- Every rule in the knowledge base **must** have a `rule_id` that is unique across
+  all JSON files in the deployment's `REASON_KNOWLEDGE_DIR`.
+- Duplicate `rule_id` values across files cause two independent failures:
+  (a) the semantic index build fails with a `DuplicateIDError` (index stays empty,
+      silently disabling semantic retrieval), and
+  (b) the filter merge's `rule_by_id` lookup applies last-write-wins semantics,
+      returning the wrong rule object for any colliding ID.
+- The loader **must** emit a `WARNING` log message listing all duplicate IDs at
+  startup when duplicates are detected.
+- Recommended convention: prefix rule IDs with a domain or file abbreviation
+  (e.g. `CAR-1`, `PRAX-1`, `R-FLEET-WEIGHT-010`).
   group in `pyproject.toml` and are **not** required for the base installation.
 - Importing the embedder module without the extras raises a clear `ImportError` with
   installation instructions.

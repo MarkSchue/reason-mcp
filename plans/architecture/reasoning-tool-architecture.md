@@ -85,7 +85,7 @@ flowchart TD
     embeds the combined query text (keywords + observation IDs/values) with
     `paraphrase-multilingual-MiniLM-L12-v2` and searches it against a local ChromaDB vector
     index of rule chunks (conditions, reasoning, recommendation, keywords).  Rules above the
-    cosine similarity threshold (`semantic_min_score`, default 0.75) are union-merged with
+    cosine similarity threshold (`semantic_min_score`, default **0.45**) are union-merged with
     Path A candidates.  Degrades gracefully to Path A alone if extras are absent or index errors
     occur.
 *   Both paths run in **parallel**; results are unioned.  Neither path gates the other.
@@ -144,3 +144,18 @@ sequenceDiagram
 6.  **Strict Boundary:** This tool has absolutely no conception of generating plans.  It yields
     insights (e.g., "The filter is clogged"), but resolving that insight is deferred to the
     Planning Tool.
+7.  **Globally Unique Rule IDs (Critical):** Every `rule_id` must be unique across *all* JSON files
+    in a deployment's `REASON_KNOWLEDGE_DIR`.  Duplicate IDs cause two independent failures:
+    (a) the semantic index build emits a `DuplicateIDError`, leaving the index empty and silently
+    disabling Path B, and (b) the filter merge's `rule_by_id` lookup uses last-write-wins
+    semantics, substituting the wrong rule object.  Recommended convention: prefix IDs with a
+    domain abbreviation (`CAR-1`, `PRAX-1`, etc.).  The loader warns at startup on any collision.
+8.  **Composite-Key Merge in Filter:** The `filter_candidates()` merge step uses a
+    `"<domain>::<rule_id>"` composite key so it remains correct even if two rules share an ID
+    across domains.  This is a defence-in-depth measure — unique IDs remain the primary contract.
+9.  **Semantic Threshold Calibration:** The default `semantic_min_score` is **0.45**, calibrated
+    empirically for `paraphrase-multilingual-MiniLM-L12-v2`.  Short fact-rules such as
+    *"The weight of a Ford Mustang is about 1500 kg."* score 0.65–0.72 against a related car
+    query; the threshold 0.75 was too aggressive and cut all valid hits.  Unrelated rules
+    (e.g. German availability text against an English weight query) score ≤ 0.18.
+

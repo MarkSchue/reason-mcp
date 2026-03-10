@@ -46,6 +46,18 @@ def load_rules(knowledge_dir: Path) -> list[dict[str, Any]]:
             logger.debug("loaded rules", file=path.name, count=len(active))
         except Exception:
             logger.exception("failed to load rule file", path=str(path))
+
+    # Warn on duplicate rule_ids across files — they cause silent data loss in
+    # the filter merge step and duplicate chunk errors in the semantic index.
+    from collections import Counter
+    id_counts = Counter(r.get("rule_id") for r in rules)
+    dupes = [rid for rid, n in id_counts.items() if n > 1]
+    if dupes:
+        logger.warning(
+            "duplicate rule_ids detected — use globally unique IDs across all "
+            "knowledge files to avoid cross-domain rule substitution",
+            duplicates=dupes,
+        )
     return rules
 
 

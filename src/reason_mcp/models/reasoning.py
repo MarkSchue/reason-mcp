@@ -29,9 +29,10 @@ class ReasoningOptions(BaseModel):
     max_summary_chars: int = Field(default=900, ge=200, le=5000)
     language: str = Field(default="en", pattern="^[a-z]{2}$")
     # Semantic retrieval always runs in parallel alongside deterministic retrieval.
-    # This threshold controls the minimum cosine similarity required for a hit.
+    # Calibrated for paraphrase-multilingual-MiniLM-L12-v2: related fact-rules
+    # typically score 0.45–0.75 with this model; the old 0.75 default cut all hits.
     semantic_min_score: float = Field(
-        default=0.75,
+        default=0.45,
         ge=0.0,
         le=1.0,
         description="Minimum cosine similarity (0..1) for a semantic hit to be accepted.",

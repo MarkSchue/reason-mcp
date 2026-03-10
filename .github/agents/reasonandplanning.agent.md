@@ -1,7 +1,7 @@
 # Reason & Planning Agent
 
-This agent is configured to interact with the `reason-mcp` server in this repository.  It
-knows how to call the two primary MCP tools -- `reasoning_analyze_context` and
+This agent is configured to interact with the `reason-mcp` server in this repository. Never read a local file by yourself; instead use the MCP tools to access knowledge or perform reasoning/planning tasks!
+It knows how to call the two primary MCP tools -- `reasoning_analyze_context` and
 `planning_generate_plan` -- and is aware of the local knowledge directory structure so
 it can leverage domain-specific rules and strategies for the current workspace.
 

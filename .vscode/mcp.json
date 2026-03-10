@@ -10,7 +10,7 @@
         "REASON_MAX_SUMMARY_CHARS": "900",
         "REASON_LOG_LEVEL": "INFO",
         // Set to "1" to write a Markdown session log for every MCP request.
-        "REASON_LOG_REQUESTS": "0",
+        "REASON_LOG_REQUESTS": "1",
         // Output directory for session log files (default: <workspaceFolder>/output).
         "REASON_OUTPUT_DIR": "${workspaceFolder}/output"
       }

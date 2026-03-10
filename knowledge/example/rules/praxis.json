@@ -1,6 +1,6 @@
 [
   {
-    "rule_id": "R-1",
+    "rule_id": "PRAX-1",
     "domain": "Praxisbesetzung",
     "active": true,
     "trigger": {
@@ -31,7 +31,7 @@
     }
   },
     {
-    "rule_id": "R-2",
+    "rule_id": "PRAX-2",
     "domain": "Praxisbesetzung",
     "active": true,
     "trigger": {

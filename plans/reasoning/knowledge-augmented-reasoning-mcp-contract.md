@@ -128,7 +128,7 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "default": 0.75,
+          "default": 0.45,
           "description": "Minimum cosine similarity for a semantic hit to be accepted as a candidate. The semantic path always runs in parallel; this threshold controls result quality."
         }
       }
@@ -171,7 +171,7 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
     "max_response_chars": 900,
     "include_debug": false,
     "language": "de",
-    "semantic_min_score": 0.75
+    "semantic_min_score": 0.45
   },
   "keywords": ["car", "weight", "fleet"]
 }

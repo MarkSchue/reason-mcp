@@ -1,10 +1,10 @@
 [
   {
-    "rule_id": "R-1",
+    "rule_id": "CAR-1",
     "domain": "CarFacts",
     "active": true,
     "trigger": {
-        "keywords": ["car", "weight", "load", "fleet", "heavy vehicle", "kg"]
+        "keywords": ["car", "weight", "load", "fleet", "heavy vehicle", "kg", "mustang", "ford"]
     },
     "conditions": {
       "natural_language": "The weight of a Ford Mustang is about 1500 kg."
@@ -32,11 +32,11 @@
     }
   },
     {
-    "rule_id": "R-2",
+    "rule_id": "CAR-2",
     "domain": "CarFacts",
     "active": true,
     "trigger": {
-        "keywords": ["car", "weight", "load", "fleet", "heavy vehicle", "kg"]
+        "keywords": ["car", "weight", "load", "fleet", "heavy vehicle", "kg", "porsche", "911"]
     },
     "conditions": {
       "natural_language": "The weight of a Porsche 911 is about 800 kg."
@@ -61,11 +61,11 @@
   }
   ,
   {
-    "rule_id": "R-3",
+    "rule_id": "CAR-3",
     "domain": "CarFacts",
     "active": true,
     "trigger": {
-        "keywords": ["motor", "engine", "lift", "weight", "torque"]
+        "keywords": ["motor", "engine", "lift", "weight", "torque", "siemens", "4711"]
     },
     "conditions": {
       "natural_language": "The electric engine Siemens 4711 can lift up to 2000 kg. It has a dimension of h=2000mm, w=1000mm, length=500mm and a weight of 150 kg."
