@@ -40,3 +40,6 @@ Thumbs.db
 knowledge/*/
 !knowledge/example/
 !knowledge/.gitkeep
+
+# Semantic index lives under the knowledge directory and is large/binary
+knowledge/example/.semantic_index/
