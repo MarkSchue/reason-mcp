@@ -174,7 +174,18 @@ def register(mcp: FastMCP) -> None:
                 "normalised_keyword_set": sorted(kw_set),
             })
 
-        # 4. Build semantic query text — semantic path always runs in parallel
+        # 4. Build search inputs for both paths
+        #    4A: Deterministic path inputs (obs_ids + kw_set already built above)
+        if config.log_requests:
+            slog.record_step("Step 4A — Deterministic search parameters", {
+                "obs_ids": sorted(obs_ids),
+                "keyword_set": sorted(kw_set),
+                "domain_filter": domain,
+                "context_state_filter": context_state,
+                "total_rules_in_knowledge_base": len(rules),
+            })
+
+        #    4B: Semantic path — build query text, always runs in parallel
         nl_parts: list[str] = []
         if keywords:
             nl_parts.extend(keywords)
@@ -184,7 +195,7 @@ def register(mcp: FastMCP) -> None:
         effective_semantic_query: str | None = " ".join(nl_parts) if nl_parts else None
         effective_index_dir: str = str(config.knowledge_dir / ".semantic_index")
         if config.log_requests:
-            slog.record_step("Step 4 — Semantic query construction", {
+            slog.record_step("Step 4B — Semantic query construction", {
                 "effective_semantic_query": effective_semantic_query,
                 "index_dir": effective_index_dir,
                 "semantic_min_score": semantic_min_score,
