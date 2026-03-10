@@ -1,4 +1,4 @@
-# REQ-020 Semantic Rule Retrieval (Stage 2)
+# REQ-020 Semantic Rule Retrieval (Parallel Path)
 
 ## User Story
 As a Host LLM operator,
@@ -7,18 +7,23 @@ exactly match the keywords or observation IDs in a rule's trigger,
 so that the system works reliably in natural-language and multilingual use cases.
 
 ## Background
-Stage 1 (deterministic) retrieval requires a precise keyword or observation ID overlap.
+Deterministic retrieval requires a precise keyword or observation ID overlap.
 This fails when the user's utterance is phrased differently from the rule's stored keywords —
-e.g. a German query with umlauts, a synonym, or a paraphrase.  Stage 2 adds a local
-vector-similarity search over rule text chunks to close this gap without losing
+e.g. a German query with umlauts, a synonym, or a paraphrase.  The semantic path adds a
+local vector-similarity search over rule text chunks to close this gap without losing
 determinism for existing rules and without requiring a hosted model or internet access.
+
+Both paths run in parallel for every request and their results are unioned.  Neither path
+gates the other.  A rule found by either path is always included in the candidate set.
 
 ## Acceptance Criteria
 
-### AC-020-01 — Opt-in activation
-- Stage 2 is activated by passing `semantic_search: true` in the `reasoning_analyze_context`
-  tool call.  When `false` (default), the pipeline behaves identically to the
-  pre-REQ-020 implementation.
+### AC-020-01 — Always-on parallel retrieval
+- The semantic path runs on every `reasoning_analyze_context` call in parallel with
+  the deterministic path.  There is no opt-in flag.
+- If the `[semantic]` extras are not installed or the index is unavailable, the
+  semantic path degrades gracefully and the deterministic path's results are returned
+  unaffected.
 
 ### AC-020-02 — Local embedding model
 - The server uses `paraphrase-multilingual-MiniLM-L12-v2` from `sentence-transformers`.
@@ -33,22 +38,23 @@ determinism for existing rules and without requiring a hosted model or internet 
 ### AC-020-04 — Chunk-based indexing
 - Each rule is indexed as up to four text chunks: `conditions`, `reasoning`,
   `recommendation`, and `keywords`.
-- Domain metadata is stored per chunk so domain filtering can be applied in Stage 2.
+- Domain metadata is stored per chunk so domain filtering can be applied in the
+  semantic path.
 
-### AC-020-05 — Dual-stage merge logic
-- A rule is included if it passes Stage 1 (obs_match OR kw_match) **OR** Stage 2
-  (semantic cosine similarity ≥ `semantic_min_score`, default 0.75).
-- Rules returned by both stages are considered higher-confidence candidates.
-- When Stage 2 returns results, catch-all rules (no trigger criteria) are suppressed
-  to avoid noise.
+### AC-020-05 — Parallel union merge logic
+- A rule is included if it is found by the deterministic path (obs_match OR kw_match)
+  **OR** by the semantic path (cosine similarity ≥ `semantic_min_score`, default 0.75).
+- Rules found by both paths carry scores from both and rank higher.
+- Catch-all rules (no trigger criteria) are still included via the deterministic path.
 
 ### AC-020-06 — Graceful fallback
-- If Stage 2 fails (model unavailable, index error, etc.), Stage 1 candidates are
-  returned unaffected.  The error is logged but never propagates to the caller.
+- If the semantic path fails (model unavailable, index error, etc.), the deterministic
+  candidates are returned unaffected.  The error is logged but never propagates to the
+  caller.
 
 ### AC-020-07 — Cache coherence
-- Calling `invalidate_cache()` also clears the semantic index, ensuring Stage 2
-  reflects the same rules as Stage 1 after any knowledge update.
+- Calling `invalidate_cache()` also clears the semantic index, ensuring both paths
+  reflect the same rules after any knowledge update.
 
 ### AC-020-08 — Optional dependency isolation
 - `sentence-transformers` and `chromadb` are declared under the `[semantic]` extras
@@ -57,11 +63,10 @@ determinism for existing rules and without requiring a hosted model or internet 
   installation instructions.
 
 ### AC-020-09 — Response transparency
-- When `semantic_search: true`, the response `meta.applied_policies` includes
-  `"semantic_retrieval"` and `meta.semantic_search` is `true`.
+- The response `meta.applied_policies` always includes `"semantic_retrieval"`.
 
 ## Notes
-- Query text for Stage 2 is assembled from the caller's `keywords` list and
+- Query text for the semantic path is assembled from the caller's `keywords` list and
   observation `observation_id`/`value` pairs.  The caller does not need to provide
   a separate NL string.
 - `semantic_min_score` defaults to 0.75 but can be overridden per request for

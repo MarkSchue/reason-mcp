@@ -124,17 +124,12 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
           "enum": ["de", "en"],
           "default": "de"
         },
-        "semantic_search": {
-          "type": "boolean",
-          "default": false,
-          "description": "Activate Stage 2 vector-similarity retrieval. Requires the [semantic] extras installed on the server. When true, rule text chunks are embedded with paraphrase-multilingual-MiniLM-L12-v2 and searched in a local ChromaDB index; results are merged with Stage 1 keyword/observation matches."
-        },
         "semantic_min_score": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "default": 0.75,
-          "description": "Minimum cosine similarity for a Stage 2 hit to be accepted as a candidate. Only relevant when semantic_search is true."
+          "description": "Minimum cosine similarity for a semantic hit to be accepted as a candidate. The semantic path always runs in parallel; this threshold controls result quality."
         }
       }
     },
@@ -176,7 +171,6 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
     "max_response_chars": 900,
     "include_debug": false,
     "language": "de",
-    "semantic_search": false,
     "semantic_min_score": 0.75
   },
   "keywords": ["car", "weight", "fleet"]

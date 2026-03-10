@@ -27,7 +27,7 @@ class Config:
         self.max_summary_chars = int(os.environ.get("REASON_MAX_SUMMARY_CHARS", "900"))
         self.log_level = os.environ.get("REASON_LOG_LEVEL", "INFO").upper()
         # When true, the server pre-builds the semantic index at startup instead of
-        # waiting for the first semantic_search=true request.
+        # waiting for the first request to trigger lazy index construction.
         self.warm_semantic: bool = os.environ.get("REASON_WARM_SEMANTIC", "").lower() in (
             "1", "true", "yes"
         )

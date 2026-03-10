@@ -28,11 +28,8 @@ class ReasoningOptions(BaseModel):
     min_relevance: float = Field(default=0.5, ge=0.0, le=1.0)
     max_summary_chars: int = Field(default=900, ge=200, le=5000)
     language: str = Field(default="en", pattern="^[a-z]{2}$")
-    # Stage 2 – semantic retrieval (opt-in, requires [semantic] extras)
-    semantic_search: bool = Field(
-        default=False,
-        description="When True, augments keyword/obs matching with vector similarity search.",
-    )
+    # Semantic retrieval always runs in parallel alongside deterministic retrieval.
+    # This threshold controls the minimum cosine similarity required for a hit.
     semantic_min_score: float = Field(
         default=0.75,
         ge=0.0,

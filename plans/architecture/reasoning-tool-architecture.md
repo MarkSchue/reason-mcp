@@ -78,19 +78,22 @@ flowchart TD
 
 ### 2.3 Candidate Rule Filter
 *   **Responsibility:** Prevents the system from evaluating the entire database of rules.
-*   **Stage 1 — Deterministic matching:** Rules are filtered by `trigger.observations`
+*   **Path A — Deterministic matching (always active):** Rules are filtered by `trigger.observations`
     (observation ID overlap) and/or `trigger.keywords` (normalised/expanded keyword intersection).
     Uses OR logic: a rule fires on either hit.  Catch-all rules (no trigger criteria) always match.
-*   **Stage 2 — Semantic retrieval (opt-in, requires `[semantic]` extras):** When
-    `semantic_search=True` is passed, the query text is embedded with
-    `paraphrase-multilingual-MiniLM-L12-v2` and searched against a local ChromaDB vector
+*   **Path B — Semantic retrieval (always active, requires `[semantic]` extras):** Every request
+    embeds the combined query text (keywords + observation IDs/values) with
+    `paraphrase-multilingual-MiniLM-L12-v2` and searches it against a local ChromaDB vector
     index of rule chunks (conditions, reasoning, recommendation, keywords).  Rules above the
-    cosine similarity threshold (`semantic_min_score`, default 0.75) are merged with Stage 1
-    candidates.  Gracefully falls back to Stage 1 alone on any error.
+    cosine similarity threshold (`semantic_min_score`, default 0.75) are union-merged with
+    Path A candidates.  Degrades gracefully to Path A alone if extras are absent or index errors
+    occur.
+*   Both paths run in **parallel**; results are unioned.  Neither path gates the other.
+    A rule from either path is always included in the candidate set.
 *   **Keyword normalisation:** Both query keywords and rule trigger.keywords are normalised
     (diacritics stripped, punctuation removed, tokens expanded) before comparison, enabling
     e.g. `"Fr. Schröder"` → `"schroder"` matching.
-*   **Performance:** Stage 1 is O(n) with negligible latency.  Stage 2 adds ~20–50 ms warm,
+*   **Performance:** Path A is O(n) with negligible latency.  Path B adds ~20–50 ms warm,
     ~500 ms cold (first model load).
 *   **Mechanism:** Uses the normalized trigger tags and current `domain` / `context_state` to perform a fast index lookup, extracting only the `<Rule>` schema items that logically apply to the given situation.
 
@@ -126,17 +129,18 @@ sequenceDiagram
 ---
 
 ## 4. Key Design Decisions & Guiding Principles
-1.  **Local-First & Deterministic (Stage 1):** Rules fire predictably from exact keyword/observation
+1.  **Local-First & Deterministic (Path A):** Rules fire predictably from exact keyword/observation
     overlap for reproducible, auditable results in high-trust domains.
-2.  **Opt-In Semantic Retrieval (Stage 2):** Vector similarity augments Stage 1 without replacing
-    it.  Existing callers and rules are unaffected when `semantic_search` is omitted.
+2.  **Parallel Semantic Retrieval (Path B):** Vector similarity always runs alongside Path A.
+    Neither path blocks or filters the other; results are unioned so no rule is missed due to
+    phrasing mismatch.
 3.  **Multilingual by Default:** The embedding model (`paraphrase-multilingual-MiniLM-L12-v2`)
     handles German and English queries without configuration, supporting real-world NL use cases.
 4.  **Facts As Conditions:** Physical constants and domain-specific limits are expressed directly
     within rule conditions (as `exact` predicates with literal values or `natural_language` text).
     There is no separate facts registry or `FACT_*` variable resolution step.
 5.  **Aggressive Token Conservation:** Zero-Value Pruning + `top_k=3` guarantee the injected
-    context stays lean even when Stage 2 broadens the candidate set.
+    context stays lean even when the semantic path broadens the candidate set.
 6.  **Strict Boundary:** This tool has absolutely no conception of generating plans.  It yields
     insights (e.g., "The filter is clogged"), but resolving that insight is deferred to the
     Planning Tool.

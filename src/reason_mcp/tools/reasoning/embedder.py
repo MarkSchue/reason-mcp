@@ -1,12 +1,15 @@
 """Semantic rule retrieval via local embedding index.
 
-This module implements Stage 2 of the dual-stage rule retrieval pipeline:
+This module implements the semantic (vector) retrieval path of the parallel
+dual-path rule retrieval pipeline:
 
-  Stage 1 (filter.py)  – deterministic keyword/observation overlap
-  Stage 2 (this file)  – vector-similarity search over rule text chunks
+  Path A (filter.py)  – deterministic keyword/observation overlap
+  Path B (this file)  – vector-similarity search over rule text chunks
 
-Both stages are independent.  Stage 2 is opt-in via ``ReasoningOptions.semantic_search``
-and requires the optional ``[semantic]`` extras::
+Both paths run in parallel for every request and their results are unioned.
+Neither path gates the other.  This module is always active when the
+``[semantic]`` extras are installed; it degrades gracefully when they are not
+(the deterministic path still returns results).
 
     pip install "reason-mcp[semantic]"
 

@@ -16,11 +16,12 @@ Request path (reasoning-first):
 2. **MCP API Layer** validates schema and applies safety limits (max observations, max tokens, timeout).
 3. **Context Input Pruner (Zero-Value Pruning)** mathematically drops observations within nominal baselines (standard deviation/thresholds) to reduce background noise and save context tokens.
 4. **Knowledge Loader** loads and caches JSON rule packs.
-5. **Candidate Filter** preselects rules via a two-stage pipeline.  Stage 1 (always active):
-   deterministic keyword and observation-ID overlap.  Stage 2 (opt-in via `semantic_search: true`):
-   vector cosine-similarity search against a local ChromaDB index of rule text chunks
-   (conditions, reasoning, recommendation, keywords) embedded with
-   `paraphrase-multilingual-MiniLM-L12-v2`; results are merged with Stage 1.
+5. **Candidate Filter** preselects rules via two parallel retrieval paths.  Path A (always active):
+   deterministic keyword and observation-ID overlap.  Path B (always active, requires
+   `[semantic]` extras): vector cosine-similarity search against a local ChromaDB index of rule
+   text chunks (conditions, reasoning, recommendation, keywords) embedded with
+   `paraphrase-multilingual-MiniLM-L12-v2`.  Results from both paths are unioned; neither path
+   gates the other.
 6. **Context & Evidence Builder** bundles the pruned observations and retrieved candidate rules into an injected prompt payload.  Any physical constants and domain facts are already embedded in rule conditions.
 7. **Ranker** scores candidates by semantic relevance, severity, freshness, and trigger confidence to fit context windows.
 8. **Relevance Compressor** applies deduplication and "Lean Context Injection" rules: strips metadata tags from JSON returned to the LLM, thereby keeping context maximally lean.
@@ -41,7 +42,8 @@ Request path (reasoning-first):
 - `knowledge/rules/*.json`: domain rule packs.  Rule conditions embed physical constants and domain facts directly as `exact` predicates (with literal values) or `natural_language` text.
 - `knowledge/taxonomy/context_terms.json`: normalized aliases, observation types, and context terms
 - `knowledge/catalog.json`: bundle index with version, checksum, and effective dates
-- `knowledge/.semantic_index/` *(auto-created)*: ChromaDB persistent vector index for Stage 2 semantic retrieval.  Created on first `semantic_search=true` request; invalidated alongside the JSON cache.
+- `knowledge/.semantic_index/` *(auto-created)*: ChromaDB persistent vector index for the
+  semantic retrieval path.  Built on first request and invalidated alongside the JSON cache.
 
 **Later (SQLite):**
 - `knowledge_items(id, rule_id, domain, description, trigger_observations_json, conditions_json, reasoning_template, action_recommendation, severity, confidence_prior, tags_json, effective_from, effective_to, version, updated_at)`

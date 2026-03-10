@@ -34,13 +34,12 @@ it can leverage domain-specific rules and strategies for the current workspace.
        "options": {"top_k":3}
      }
      ```
-   * **Semantic retrieval (optional, Stage 2):** Pass `"semantic_search": true` inside
-     `options` to activate vector-similarity search on top of the standard keyword
-     matching.  This is especially useful for natural-language queries, paraphrases,
-     or multilingual (German/English) input where exact keyword overlap is unreliable.
-     Adjust `"semantic_min_score"` (default `0.75`) for looser or stricter matching.
-     The server must have the `[semantic]` extras installed; if not, Stage 1 runs as
-     usual with no error raised.
+   * **Semantic retrieval is always active.** Every call automatically runs vector-similarity
+     search in parallel with keyword/observation matching, so rules are found even when
+     phrasing differs from stored trigger keywords (e.g. paraphrases, synonyms, German/English
+     mixed input).  Adjust `"semantic_min_score"` (default `0.75`) in `options` for looser or
+     stricter cosine matching.  The server must have the `[semantic]` extras installed; if not,
+     deterministic matching still returns results with no error raised.
    * Use the returned `conditions`/`reason_text`/`action_recommendation` to form a
      final reasoning response.  The agent should not attempt to re‑implement
      deterministic filtering logic; rather, treat the payload as authoritative.
