@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "reason-mcp: Rebuild Semantic Index",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/rebuild_index.sh ${workspaceFolder}/knowledge/example",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Invalidates the ChromaDB semantic index and rebuilds it from the current knowledge rules. Run this after editing any rule JSON file."
+    },
+    {
+      "label": "reason-mcp: Start Server",
+      "type": "shell",
+      "command": "REASON_KNOWLEDGE_DIR=${workspaceFolder}/knowledge/example REASON_LOG_LEVEL=INFO ${workspaceFolder}/.venv/bin/reason-mcp",
+      "group": "build",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start the reason-mcp server with the example knowledge directory."
+    },
+    {
+      "label": "reason-mcp: Start Server (warm semantic index)",
+      "type": "shell",
+      "command": "REASON_KNOWLEDGE_DIR=${workspaceFolder}/knowledge/example REASON_WARM_SEMANTIC=1 REASON_LOG_LEVEL=INFO ${workspaceFolder}/.venv/bin/reason-mcp",
+      "group": "build",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start the reason-mcp server and pre-warm the semantic index before accepting the first request."
+    }
+  ]
+}

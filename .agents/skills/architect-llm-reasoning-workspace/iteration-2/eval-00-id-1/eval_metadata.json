@@ -1,0 +1,15 @@
+{
+  "eval_id": 1,
+  "eval_name": "eval-00-id-1",
+  "prompt": "I am building a Python-only operations assistant with a local SLM. Design an architecture that stores domain knowledge, planning strategies, and capability metadata so the model can reason and plan reliably.",
+  "assertions": [
+    "Has explicit primary architecture recommendation",
+    "Includes storage design covering knowledge, strategies, capabilities",
+    "Provides stepwise reasoning/planning flow",
+    "Includes local-vs-cloud decision with explicit criteria",
+    "Clearly separates priority policy vs planning strategy",
+    "Python-only implementation guidance with concrete tools",
+    "Includes risks and mitigations",
+    "Includes phased roadmap with measurable KPIs"
+  ]
+}

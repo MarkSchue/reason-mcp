@@ -1,0 +1,15 @@
+{
+  "eval_id": 2,
+  "eval_name": "eval-01-id-2",
+  "prompt": "For a Python platform, compare local vs cloud model deployment when reasoning data is stored in PostgreSQL plus vector search. Recommend the better option for low latency and strict data governance.",
+  "assertions": [
+    "Has explicit primary architecture recommendation",
+    "Includes storage design covering knowledge, strategies, capabilities",
+    "Provides stepwise reasoning/planning flow",
+    "Includes local-vs-cloud decision with explicit criteria",
+    "Clearly separates priority policy vs planning strategy",
+    "Python-only implementation guidance with concrete tools",
+    "Includes risks and mitigations",
+    "Includes phased roadmap with measurable KPIs"
+  ]
+}

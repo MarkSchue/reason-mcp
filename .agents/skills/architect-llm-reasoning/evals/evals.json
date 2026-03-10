@@ -1,0 +1,23 @@
+{
+  "skill_name": "architect-llm-reasoning",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I am building a Python-only operations assistant with a local SLM. Design an architecture that stores domain knowledge, planning strategies, and capability metadata so the model can reason and plan reliably.",
+      "expected_output": "Local-first architecture recommendation with concrete component layout, storage schema, reasoning flow, and phased implementation roadmap",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "For a Python platform, compare local vs cloud model deployment when reasoning data is stored in PostgreSQL plus vector search. Recommend the better option for low latency and strict data governance.",
+      "expected_output": "Clear local-vs-cloud decision with latency/security/operations trade-offs and an implementation approach in Python",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I need a hybrid architecture where sensitive tasks run locally and complex planning can use cloud models. How should strategy storage, prioritization policies, and routing logic be designed in Python?",
+      "expected_output": "Hybrid architecture with routing policy, strategy/policy storage design, risk controls, and rollout plan",
+      "files": []
+    }
+  ]
+}

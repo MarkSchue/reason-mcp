@@ -1,0 +1,14 @@
+{
+  "eval_id": 3,
+  "eval_name": "eval-02-id-3",
+  "prompt": "I need a hybrid architecture where sensitive tasks run locally and complex planning can use cloud models. How should strategy storage, prioritization policies, and routing logic be designed in Python?",
+  "assertions": [
+    "Has explicit architecture recommendation",
+    "Includes storage design for knowledge/plans/capabilities",
+    "Provides reasoning/planning flow steps",
+    "Includes local-vs-cloud or routing decision with justification",
+    "Python-only tooling and implementation guidance",
+    "Includes risks and mitigations",
+    "Includes phased implementation roadmap"
+  ]
+}

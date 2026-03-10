@@ -1,0 +1,50 @@
+{
+  "run_id": "eval-02-id-3-with_skill",
+  "expectations": [
+    {
+      "text": "Has explicit primary architecture recommendation",
+      "passed": true,
+      "evidence": "matched `Primary recommendation`"
+    },
+    {
+      "text": "Includes storage design covering knowledge, strategies, capabilities",
+      "passed": false,
+      "evidence": "matched `Storage design`; missing `knowledge`; matched `strateg`; missing `capabilit`"
+    },
+    {
+      "text": "Provides stepwise reasoning/planning flow",
+      "passed": true,
+      "evidence": "matched `Reasoning/planning flow|flow`; matched `\\\\n1\\\\.|step-by-step`"
+    },
+    {
+      "text": "Includes local-vs-cloud decision with explicit criteria",
+      "passed": true,
+      "evidence": "matched `Local vs cloud decision|local vs cloud`; matched `latency`; matched `governance`; matched `cost`; matched `complexity`"
+    },
+    {
+      "text": "Clearly separates priority policy vs planning strategy",
+      "passed": true,
+      "evidence": "matched `priority policy`; matched `planning strategy|strategy`"
+    },
+    {
+      "text": "Python-only implementation guidance with concrete tools",
+      "passed": true,
+      "evidence": "matched `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"
+    },
+    {
+      "text": "Includes risks and mitigations",
+      "passed": true,
+      "evidence": "matched `Risks and mitigations|Risk`"
+    },
+    {
+      "text": "Includes phased roadmap with measurable KPIs",
+      "passed": true,
+      "evidence": "matched `Implementation roadmap|Phase`; matched `KPI|p95|success rate|policy violations`"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "total": 8,
+    "pass_rate": 0.875
+  }
+}

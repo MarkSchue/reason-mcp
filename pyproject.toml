@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=72", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reason-mcp"
+version = "0.1.0"
+description = "General-purpose MCP server for knowledge-augmented reasoning and planning"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.5.0",
+    "pydantic>=2.7.0",
+    "orjson>=3.10.0",
+    "structlog>=24.4.0",
+    "watchfiles>=0.23.0",
+]
+
+[project.optional-dependencies]
+semantic = [
+    "sentence-transformers>=3.0.0",
+    "chromadb>=0.5.0",
+]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.4.0",
+    "pyright>=1.1.0",
+]
+
+[project.scripts]
+reason-mcp = "reason_mcp.server:main"
+reason-mcp-index = "reason_mcp.server:index_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"

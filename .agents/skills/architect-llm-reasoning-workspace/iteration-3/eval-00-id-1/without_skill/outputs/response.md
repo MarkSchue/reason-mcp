@@ -1,0 +1,1 @@
+Local-first Python architecture with retrieval and planning loop. Use PostgreSQL+pgvector and basic policy controls.

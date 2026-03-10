@@ -1,0 +1,64 @@
+[
+  {
+    "rule_id": "R-1",
+    "domain": "Praxisbesetzung",
+    "active": true,
+    "trigger": {
+        "keywords": ["Urlaub", "Krankheit"]
+    },
+    "conditions": {
+      "natural_language": "Fr. Meier arbeitet von Montags bis Mittwochs von 08:00 bis 10:00 Uhr"
+    },
+    "reasoning": {
+      "possible_causes": [
+        "Mitarbeiterin ist nur Montag bis Mittwoch bis 10:00 Uhr tätig",
+        "Fehlende Verfügbarkeit außerhalb der Arbeitszeiten"
+      ],
+      "confidence_prior": 0.95
+    },
+    "recommendation": {
+      "action": "Versuchen Sie Hr. Müller zu erreichen",
+      "urgency": "medium"
+    },
+    "scoring": {
+      "severity": 3,
+      "specificity": 0.9
+    },
+    
+    "metadata": {
+      "created_by": "Markus",
+      "created_at": "2026-03-10T12:00:00Z"
+    }
+  },
+    {
+    "rule_id": "R-2",
+    "domain": "Praxisbesetzung",
+    "active": true,
+    "trigger": {
+        "keywords": ["Urlaub", "Krankheit"]
+    },
+    "conditions": {
+      "natural_language": "Hr. Müller arbeitet von Donnerstags und Freitags von 08:00 bis 10:00 Uhr"
+    },
+    "reasoning": {
+      "possible_causes": [
+        "Mitarbeiter ist nur Donnerstag und Freitag bis 10:00 Uhr tätig",
+        "Fehlende Verfügbarkeit außerhalb der Arbeitszeiten"
+      ],
+      "confidence_prior": 0.95
+    },
+    "recommendation": {
+      "action": "Versuchen Sie Fr. Meier zu erreichen",
+      "urgency": "medium"
+    },
+    "scoring": {
+      "severity": 3,
+      "specificity": 0.9
+    },
+    
+    "metadata": {
+      "created_by": "Markus",
+      "created_at": "2026-03-10T12:00:00Z"
+    }
+  }
+]

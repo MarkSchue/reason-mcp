@@ -1,0 +1,76 @@
+{
+  "skill_name": "architect-llm-reasoning",
+  "iteration": 3,
+  "metrics": {
+    "with_skill": {
+      "eval_count": 3,
+      "avg_pass_rate": 1.0,
+      "avg_word_count": 273.7,
+      "per_eval": [
+        {
+          "eval": "eval-00-id-1",
+          "variant": "with_skill",
+          "passed": 8,
+          "total": 8,
+          "pass_rate": 1.0,
+          "word_count": 295
+        },
+        {
+          "eval": "eval-01-id-2",
+          "variant": "with_skill",
+          "passed": 8,
+          "total": 8,
+          "pass_rate": 1.0,
+          "word_count": 263
+        },
+        {
+          "eval": "eval-02-id-3",
+          "variant": "with_skill",
+          "passed": 8,
+          "total": 8,
+          "pass_rate": 1.0,
+          "word_count": 263
+        }
+      ],
+      "timing": "not_collected",
+      "tokens": "not_collected"
+    },
+    "without_skill": {
+      "eval_count": 3,
+      "avg_pass_rate": 0.0417,
+      "avg_word_count": 14.0,
+      "per_eval": [
+        {
+          "eval": "eval-00-id-1",
+          "variant": "without_skill",
+          "passed": 1,
+          "total": 8,
+          "pass_rate": 0.125,
+          "word_count": 14
+        },
+        {
+          "eval": "eval-01-id-2",
+          "variant": "without_skill",
+          "passed": 0,
+          "total": 8,
+          "pass_rate": 0.0,
+          "word_count": 14
+        },
+        {
+          "eval": "eval-02-id-3",
+          "variant": "without_skill",
+          "passed": 0,
+          "total": 8,
+          "pass_rate": 0.0,
+          "word_count": 14
+        }
+      ],
+      "timing": "not_collected",
+      "tokens": "not_collected"
+    }
+  },
+  "delta": {
+    "pass_rate_delta": 0.9583,
+    "word_count_delta": 259.7
+  }
+}

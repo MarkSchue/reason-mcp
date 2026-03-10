@@ -1,0 +1,1 @@
+Local is better for latency and governance; cloud can help complexity and burst scale.

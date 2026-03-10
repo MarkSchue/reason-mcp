@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "reason-mcp": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/bin/reason-mcp",
+      "env": {
+        "REASON_KNOWLEDGE_DIR": "${workspaceFolder}/knowledge/example",
+        "REASON_DEFAULT_TOP_K": "3",
+        "REASON_MIN_RELEVANCE": "0.5",
+        "REASON_MAX_SUMMARY_CHARS": "900",
+        "REASON_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}

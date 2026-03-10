@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checking
+.pyright/
+.mypy_cache/
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Knowledge store – project-specific data is not committed
+# (commit only the example/ fixtures)
+knowledge/*/
+!knowledge/example/
+!knowledge/.gitkeep

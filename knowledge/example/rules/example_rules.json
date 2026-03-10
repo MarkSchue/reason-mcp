@@ -1,0 +1,167 @@
+[
+  {
+    "rule_id": "R-VEHICLE-005",
+    "domain": "fleet_tracking",
+    "active": true,
+    "trigger": {
+      "observations": ["OBS_VEHICLE_SEEN"],
+      "keywords": ["car", "vehicle", "convertible", "red car", "fleet"]
+    },
+    "conditions": {
+      "natural_language": "A red car is always a convertible."
+    },
+    "reasoning": {
+      "possible_causes": ["incorrect vehicle classification", "data entry error"],
+      "confidence_prior": 0.90
+    },
+    "recommendation": {
+      "action": "Verify the vehicle type against the fleet registry.",
+      "urgency": "medium"
+    },
+    "scoring": {
+      "severity": 2,
+      "specificity": 0.95
+    }
+  },
+  {
+    "rule_id": "R-PRESSURE-001",
+    "domain": "industrial",
+    "active": true,
+    "trigger": {
+      "observations": ["OBS_PRESSURE"],
+      "context_states": ["PRODUCTION"],
+      "keywords": ["pressure", "industrial", "production", "atm", "hydraulic", "valve"]
+    },
+    "conditions": {
+      "exact": [
+        { "left": "context_state", "op": "==", "right": "PRODUCTION" },
+        { "left": "OBS_PRESSURE", "op": ">=", "right": 8.0 },
+        { "left": "OBS_PRESSURE", "op": "<=", "right": 10.0 }
+      ],
+      "natural_language": "Pressure must stay between 8.0 and 10.0 atm during production."
+    },
+    "reasoning": {
+      "possible_causes": ["sensor drift", "valve malfunction", "load spike"],
+      "confidence_prior": 0.85
+    },
+    "recommendation": {
+      "action": "Check valve configuration and recalibrate sensor.",
+      "urgency": "high"
+    },
+    "scoring": {
+      "severity": 4,
+      "specificity": 0.88
+    }
+  },
+  {
+    "rule_id": "R-FLEET-WEIGHT-010",
+    "domain": "fleet_tracking",
+    "active": true,
+    "trigger": {
+      "observations": ["OBS_TOTAL_WEIGHT", "OBS_CAR_COUNT"],
+      "keywords": ["car", "weight", "load", "fleet", "heavy vehicle", "kg"]
+    },
+    "conditions": {
+      "exact": [
+        { "left": "OBS_CAR_COUNT", "op": ">=", "right": 1 }
+      ],
+      "natural_language": "A standard car weighs 1000 kg. The total fleet weight must equal OBS_CAR_COUNT multiplied by 1000 kg (±150 kg tolerance per vehicle). If the observed total weight deviates significantly from this expected value, a load anomaly or miscounted vehicles should be suspected."
+    },
+    "reasoning": {
+      "possible_causes": ["overloaded vehicle", "incorrect car count", "cargo not declared", "scale sensor fault"],
+      "confidence_prior": 0.88
+    },
+    "recommendation": {
+      "action": "Re-count vehicles and verify individual load readings against the 1000 kg baseline.",
+      "urgency": "medium"
+    },
+    "scoring": {
+      "severity": 3,
+      "specificity": 0.85
+    }
+  },
+  {
+    "rule_id": "R-TEMPERATURE-002",
+    "domain": "industrial",
+    "active": true,
+    "trigger": {
+      "observations": ["OBS_TEMPERATURE"],
+      "context_states": ["PRODUCTION", "STANDBY"],
+      "keywords": ["temperature", "heat", "cooling", "industrial", "thermal", "overheating"]
+    },
+    "conditions": {
+      "exact": [
+        { "left": "OBS_TEMPERATURE", "op": ">=", "right": 15.0 },
+        { "left": "OBS_TEMPERATURE", "op": "<=", "right": 80.0 }
+      ],
+      "natural_language": "Safe operating temperature range is 15 °C (minimum warm-up threshold) to 80 °C (maximum continuous rated temperature). Below 15 °C the lubricant viscosity becomes too high for safe operation. Above 80 °C thermal runaway risk increases sharply and component lifetime degrades by ~50 % for every 10 °C above the rated maximum."
+    },
+    "reasoning": {
+      "possible_causes": ["cooling system failure", "blocked ventilation", "ambient temperature extreme", "overload condition", "cold start without warm-up"],
+      "confidence_prior": 0.92
+    },
+    "recommendation": {
+      "action": "Check cooling circuit and ambient conditions. Below 15 °C: allow warm-up cycle. Above 80 °C: reduce load immediately and inspect cooling.",
+      "urgency": "high"
+    },
+    "scoring": {
+      "severity": 4,
+      "specificity": 0.91
+    }
+  },
+  {
+    "rule_id": "R-TANK-LEVEL-003",
+    "domain": "industrial",
+    "active": true,
+    "trigger": {
+      "observations": ["OBS_TANK_LEVEL_PCT"],
+      "keywords": ["tank", "level", "industrial", "litre", "overflow", "pump", "reservoir"]
+    },
+    "conditions": {
+      "exact": [
+        { "left": "OBS_TANK_LEVEL_PCT", "op": ">=", "right": 10.0 },
+        { "left": "OBS_TANK_LEVEL_PCT", "op": "<=", "right": 90.0 }
+      ],
+      "natural_language": "Tank capacity is 5000 litres. The operational band is 10 % (500 L minimum reserve, below which pump cavitation risk rises) to 90 % (4500 L maximum fill, leaving a 500 L thermal expansion buffer). Falling below 10 % triggers an automatic low-level alarm; exceeding 90 % risks overflow through the pressure-relief vent."
+    },
+    "reasoning": {
+      "possible_causes": ["feed valve stuck closed", "unexpectedly high consumption", "overflow due to stuck-open fill valve", "level sensor miscalibration"],
+      "confidence_prior": 0.87
+    },
+    "recommendation": {
+      "action": "Below 10 %: stop process and refill immediately. Above 90 %: close fill valve and inspect overflow protection.",
+      "urgency": "high"
+    },
+    "scoring": {
+      "severity": 4,
+      "specificity": 0.87
+    }
+  },
+  {
+    "rule_id": "R-SPEED-004",
+    "domain": "fleet_tracking",
+    "active": true,
+    "trigger": {
+      "observations": ["OBS_SPEED_KMH"],
+      "keywords": ["speed", "vehicle", "fleet", "highway", "km/h", "driving", "overspeed"]
+    },
+    "conditions": {
+      "exact": [
+        { "left": "OBS_SPEED_KMH", "op": "<=", "right": 120.0 }
+      ],
+      "natural_language": "Fleet vehicles are rated for a maximum safe highway speed of 120 km/h. The manufacturer's tyre speed rating is 130 km/h (category H); the 10 km/h margin is the company policy buffer for safety. Any reading above 120 km/h constitutes a policy violation and must be flagged regardless of road type or driver intent."
+    },
+    "reasoning": {
+      "possible_causes": ["driver speeding", "GPS speed sensor error", "vehicle under remote control without speed limiter active"],
+      "confidence_prior": 0.95
+    },
+    "recommendation": {
+      "action": "Alert fleet manager immediately. Review driver telemetry log and issue a corrective-action notice if confirmed.",
+      "urgency": "high"
+    },
+    "scoring": {
+      "severity": 5,
+      "specificity": 0.95
+    }
+  }
+]

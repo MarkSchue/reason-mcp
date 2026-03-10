@@ -1,0 +1,1 @@
+Hybrid routing with local default and cloud fallback; store rules and logs in PostgreSQL.

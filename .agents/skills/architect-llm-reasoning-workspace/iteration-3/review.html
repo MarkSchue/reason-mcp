@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "architect-llm-reasoning", "runs": [{"id": "eval-00-id-1-with_skill", "prompt": "I am building a Python-only operations assistant with a local SLM. Design an architecture that stores domain knowledge, planning strategies, and capability metadata so the model can reason and plan reliably.", "eval_id": 1, "outputs": [{"name": "response.md", "type": "text", "content": "1) **Recommended architecture**\nPrimary recommendation: adopt a local-first Python architecture with a policy-driven planner-executor-verifier loop and explicit strategy memory.\n\n2) **Component diagram in words**\nFastAPI API -> Orchestrator -> Policy Engine -> Retrieval -> Planner -> Executor -> Verifier -> Telemetry.\n\n3) **Storage design (tables/collections + why)**\n- **Knowledge** storage: `knowledge_items`, `knowledge_embeddings`; purpose is grounded domain recall.\n- **Planning strategies** storage: `planning_strategies`; purpose is reusable execution templates and strategy scoring.\n- **Capabilities** storage: `capabilities`; purpose is tool metadata, preconditions, and safety limits.\n- Example entity: `planning_strategies(id, domain, strategy_json, version, score_quality, score_reliability, updated_at)`.\n- Priority policy is stored separately in `priority_policies` to define objectives, while planning strategy defines execution method.\n\n4) **Reasoning/planning flow (step-by-step)**\n1. Classify task and sensitivity.\n2. Load priority policy and hard constraints.\n3. Retrieve knowledge, planning strategy, and capabilities.\n4. Generate plan and verify constraints.\n5. Execute steps with checkpoints.\n6. Persist run trace and rescore strategy.\n\n5) **Local vs cloud decision with explicit criteria**\nLatency: local is lower and more predictable. Governance: local keeps sensitive data in-boundary. Cost: local is steadier at sustained volume, cloud helps bursty usage. Complexity: cloud can help hardest synthesis tasks.\nDecision: local-first with policy-gated cloud fallback for low-sensitivity high-complexity tasks only.\n\n6) **Python stack recommendation**\nFastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL+pgvector, Redis, Celery/RQ, OpenTelemetry, pytest.\n\n7) **Risks and mitigations**\nRisk: stale knowledge -> freshness TTL and confidence filters.\nRisk: strategy drift -> versioned strategies with canary rollout.\nRisk: unsafe routing -> deny-by-default cloud policy and verifier checks.\n\n8) **Implementation roadmap (phased)**\nPhase 1: core API + schema + local model gateway.\nPhase 2: policy engine + strategy scorer + verifier loop.\nPhase 3: governed hybrid fallback and observability hardening.\nKPIs: p95 latency < 2.0s, policy violations = 0, task success > 90%, verifier pass rate > 95%.\n"}], "grading": {"run_id": "eval-00-id-1-with_skill", "expectations": [{"text": "Has explicit primary architecture recommendation", "passed": true, "evidence": "matched `Primary recommendation`"}, {"text": "Includes storage design covering knowledge, strategies, capabilities", "passed": true, "evidence": "matched `Storage design`; matched `knowledge`; matched `strateg`; matched `capabilit`"}, {"text": "Provides stepwise reasoning/planning flow", "passed": true, "evidence": "matched `Reasoning/planning flow|flow`; matched `\\\\n1\\\\.|step-by-step`"}, {"text": "Includes local-vs-cloud decision with explicit criteria", "passed": true, "evidence": "matched `Local vs cloud decision|local vs cloud`; matched `latency`; matched `governance`; matched `cost`; matched `complexity`"}, {"text": "Clearly separates priority policy vs planning strategy", "passed": true, "evidence": "matched `priority policy`; matched `planning strategy|strategy`"}, {"text": "Python-only implementation guidance with concrete tools", "passed": true, "evidence": "matched `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"}, {"text": "Includes risks and mitigations", "passed": true, "evidence": "matched `Risks and mitigations|Risk`"}, {"text": "Includes phased roadmap with measurable KPIs", "passed": true, "evidence": "matched `Implementation roadmap|Phase`; matched `KPI|p95|success rate|policy violations`"}], "summary": {"passed": 8, "total": 8, "pass_rate": 1.0}}}, {"id": "eval-00-id-1-without_skill", "prompt": "I am building a Python-only operations assistant with a local SLM. Design an architecture that stores domain knowledge, planning strategies, and capability metadata so the model can reason and plan reliably.", "eval_id": 1, "outputs": [{"name": "response.md", "type": "text", "content": "Local-first Python architecture with retrieval and planning loop. Use PostgreSQL+pgvector and basic policy controls."}], "grading": {"run_id": "eval-00-id-1-without_skill", "expectations": [{"text": "Has explicit primary architecture recommendation", "passed": false, "evidence": "missing `Primary recommendation`"}, {"text": "Includes storage design covering knowledge, strategies, capabilities", "passed": false, "evidence": "missing `Storage design`; missing `knowledge`; missing `strateg`; missing `capabilit`"}, {"text": "Provides stepwise reasoning/planning flow", "passed": false, "evidence": "missing `Reasoning/planning flow|flow`; missing `\\\\n1\\\\.|step-by-step`"}, {"text": "Includes local-vs-cloud decision with explicit criteria", "passed": false, "evidence": "missing `Local vs cloud decision|local vs cloud`; missing `latency`; missing `governance`; missing `cost`; missing `complexity`"}, {"text": "Clearly separates priority policy vs planning strategy", "passed": false, "evidence": "missing `priority policy`; missing `planning strategy|strategy`"}, {"text": "Python-only implementation guidance with concrete tools", "passed": true, "evidence": "matched `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"}, {"text": "Includes risks and mitigations", "passed": false, "evidence": "missing `Risks and mitigations|Risk`"}, {"text": "Includes phased roadmap with measurable KPIs", "passed": false, "evidence": "missing `Implementation roadmap|Phase`; missing `KPI|p95|success rate|policy violations`"}], "summary": {"passed": 1, "total": 8, "pass_rate": 0.125}}}, {"id": "eval-01-id-2-with_skill", "prompt": "For a Python platform, compare local vs cloud model deployment when reasoning data is stored in PostgreSQL plus vector search. Recommend the better option for low latency and strict data governance.", "eval_id": 2, "outputs": [{"name": "response.md", "type": "text", "content": "1) **Recommended architecture**\nPrimary recommendation: run local-first Python inference with PostgreSQL+pgvector co-located, and allow cloud only via explicit governance gates.\n\n2) **Component diagram in words**\nAPI -> Policy Engine -> Retrieval -> Planner -> Model Gateway -> Verifier -> Audit logger.\n\n3) **Storage design (tables/collections + why)**\n- **Knowledge** storage: `knowledge_items`, `knowledge_embeddings` for factual grounding.\n- **Planning strategies** storage: `planning_strategies` for reusable decomposition policies and scoring.\n- **Capabilities** storage: `capabilities` for action constraints and schemas.\n- Example entity: `capabilities(id, name, version, preconditions_json, limits_json, owner, updated_at)`.\n- Keep `priority_policies` separate from planning strategy so governance updates do not rewrite execution tactics.\n\n4) **Reasoning/planning flow (step-by-step)**\n1. Ingest request and classify sensitivity/complexity.\n2. Apply priority policy constraints.\n3. Retrieve knowledge + strategies + capabilities.\n4. Build and verify plan.\n5. Execute and evaluate output.\n6. Log outcomes and update strategy scores.\n\n5) **Local vs cloud decision with explicit criteria**\nLatency: local wins. Governance: local wins strongly. Cost: local better for steady load, cloud for spikes. Complexity: cloud useful for hardest planning cases.\nDecision: choose local-first for your constraints and keep cloud as gated fallback only.\n\n6) **Python stack recommendation**\nFastAPI, SQLAlchemy, Alembic, psycopg, pgvector-python, asyncio, structlog, Prometheus client.\n\n7) **Risks and mitigations**\nCapacity saturation -> queue and autoscaling.\nEmbedding drift -> scheduled re-embedding.\nPolicy misrouting -> simulation tests and immutable audit events.\n\n8) **Implementation roadmap (phased)**\nPhase 1: foundation (schema + retrieval + local route).\nPhase 2: policy separation + strategy scoring.\nPhase 3: hybrid fallback controls + verifier hardening.\nKPIs: p95 < 1.5s, compliance incidents 0, fallback rate < 15%, success rate > 88%.\n"}], "grading": {"run_id": "eval-01-id-2-with_skill", "expectations": [{"text": "Has explicit primary architecture recommendation", "passed": true, "evidence": "matched `Primary recommendation`"}, {"text": "Includes storage design covering knowledge, strategies, capabilities", "passed": true, "evidence": "matched `Storage design`; matched `knowledge`; matched `strateg`; matched `capabilit`"}, {"text": "Provides stepwise reasoning/planning flow", "passed": true, "evidence": "matched `Reasoning/planning flow|flow`; matched `\\\\n1\\\\.|step-by-step`"}, {"text": "Includes local-vs-cloud decision with explicit criteria", "passed": true, "evidence": "matched `Local vs cloud decision|local vs cloud`; matched `latency`; matched `governance`; matched `cost`; matched `complexity`"}, {"text": "Clearly separates priority policy vs planning strategy", "passed": true, "evidence": "matched `priority policy`; matched `planning strategy|strategy`"}, {"text": "Python-only implementation guidance with concrete tools", "passed": true, "evidence": "matched `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"}, {"text": "Includes risks and mitigations", "passed": true, "evidence": "matched `Risks and mitigations|Risk`"}, {"text": "Includes phased roadmap with measurable KPIs", "passed": true, "evidence": "matched `Implementation roadmap|Phase`; matched `KPI|p95|success rate|policy violations`"}], "summary": {"passed": 8, "total": 8, "pass_rate": 1.0}}}, {"id": "eval-01-id-2-without_skill", "prompt": "For a Python platform, compare local vs cloud model deployment when reasoning data is stored in PostgreSQL plus vector search. Recommend the better option for low latency and strict data governance.", "eval_id": 2, "outputs": [{"name": "response.md", "type": "text", "content": "Local is better for latency and governance; cloud can help complexity and burst scale."}], "grading": {"run_id": "eval-01-id-2-without_skill", "expectations": [{"text": "Has explicit primary architecture recommendation", "passed": false, "evidence": "missing `Primary recommendation`"}, {"text": "Includes storage design covering knowledge, strategies, capabilities", "passed": false, "evidence": "missing `Storage design`; missing `knowledge`; missing `strateg`; missing `capabilit`"}, {"text": "Provides stepwise reasoning/planning flow", "passed": false, "evidence": "missing `Reasoning/planning flow|flow`; missing `\\\\n1\\\\.|step-by-step`"}, {"text": "Includes local-vs-cloud decision with explicit criteria", "passed": false, "evidence": "missing `Local vs cloud decision|local vs cloud`; matched `latency`; matched `governance`; missing `cost`; matched `complexity`"}, {"text": "Clearly separates priority policy vs planning strategy", "passed": false, "evidence": "missing `priority policy`; missing `planning strategy|strategy`"}, {"text": "Python-only implementation guidance with concrete tools", "passed": false, "evidence": "missing `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"}, {"text": "Includes risks and mitigations", "passed": false, "evidence": "missing `Risks and mitigations|Risk`"}, {"text": "Includes phased roadmap with measurable KPIs", "passed": false, "evidence": "missing `Implementation roadmap|Phase`; missing `KPI|p95|success rate|policy violations`"}], "summary": {"passed": 0, "total": 8, "pass_rate": 0.0}}}, {"id": "eval-02-id-3-with_skill", "prompt": "I need a hybrid architecture where sensitive tasks run locally and complex planning can use cloud models. How should strategy storage, prioritization policies, and routing logic be designed in Python?", "eval_id": 3, "outputs": [{"name": "response.md", "type": "text", "content": "1) **Recommended architecture**\nPrimary recommendation: deploy a hybrid Python control plane with strict local default and policy-evaluated cloud escalation for complex non-sensitive tasks.\n\n2) **Component diagram in words**\nFastAPI -> Task Classifier -> Policy Engine -> Strategy Selector -> Model Gateway(local/cloud) -> Verifier -> Telemetry scorer.\n\n3) **Storage design (tables/collections + why)**\n- **Knowledge** storage: `knowledge_items` and vector embeddings for context retrieval.\n- **Planning strategies** storage: `planning_strategies` and `strategy_scores` for adaptive plan selection.\n- **Capabilities** storage: `capabilities` for executable tool metadata and guardrails.\n- Example entity: `priority_policies(id, objective_weights_json, hard_constraints_json, version, effective_from)`.\n- Separation rule: priority policy governs objective weighting; planning strategy governs execution path.\n\n4) **Reasoning/planning flow (step-by-step)**\n1. Classify task sensitivity and complexity.\n2. Load active priority policy.\n3. Retrieve knowledge, capabilities, and top strategy.\n4. Route local/cloud via policy thresholds.\n5. Execute and verify outputs.\n6. Persist telemetry and rescore strategies.\n\n5) **Local vs cloud decision with explicit criteria**\nLatency: local lower jitter. Governance: local stronger compliance posture. Cost: local better for sustained throughput; cloud helps burst workloads. Complexity: cloud can improve deep synthesis tasks.\nDecision: hybrid with local-by-default and explicit cloud allow-list.\n\n6) **Python stack recommendation**\nFastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL+pgvector, Celery, Redis, OpenTelemetry, pytest.\n\n7) **Risks and mitigations**\nCloud leakage -> redaction and deny-by-default routing.\nPolicy contradiction -> policy linting and staged rollout.\nStrategy overfitting -> holdout evaluation and rolling score windows.\n\n8) **Implementation roadmap (phased)**\nPhase 1: local core pipeline.\nPhase 2: policy/strategy separation and router.\nPhase 3: governed cloud fallback and reliability tuning.\nKPIs: success rate > 90%, policy violations 0, p99 < 4s, verifier-pass > 95%.\n"}], "grading": {"run_id": "eval-02-id-3-with_skill", "expectations": [{"text": "Has explicit primary architecture recommendation", "passed": true, "evidence": "matched `Primary recommendation`"}, {"text": "Includes storage design covering knowledge, strategies, capabilities", "passed": true, "evidence": "matched `Storage design`; matched `knowledge`; matched `strateg`; matched `capabilit`"}, {"text": "Provides stepwise reasoning/planning flow", "passed": true, "evidence": "matched `Reasoning/planning flow|flow`; matched `\\\\n1\\\\.|step-by-step`"}, {"text": "Includes local-vs-cloud decision with explicit criteria", "passed": true, "evidence": "matched `Local vs cloud decision|local vs cloud`; matched `latency`; matched `governance`; matched `cost`; matched `complexity`"}, {"text": "Clearly separates priority policy vs planning strategy", "passed": true, "evidence": "matched `priority policy`; matched `planning strategy|strategy`"}, {"text": "Python-only implementation guidance with concrete tools", "passed": true, "evidence": "matched `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"}, {"text": "Includes risks and mitigations", "passed": true, "evidence": "matched `Risks and mitigations|Risk`"}, {"text": "Includes phased roadmap with measurable KPIs", "passed": true, "evidence": "matched `Implementation roadmap|Phase`; matched `KPI|p95|success rate|policy violations`"}], "summary": {"passed": 8, "total": 8, "pass_rate": 1.0}}}, {"id": "eval-02-id-3-without_skill", "prompt": "I need a hybrid architecture where sensitive tasks run locally and complex planning can use cloud models. How should strategy storage, prioritization policies, and routing logic be designed in Python?", "eval_id": 3, "outputs": [{"name": "response.md", "type": "text", "content": "Hybrid routing with local default and cloud fallback; store rules and logs in PostgreSQL."}], "grading": {"run_id": "eval-02-id-3-without_skill", "expectations": [{"text": "Has explicit primary architecture recommendation", "passed": false, "evidence": "missing `Primary recommendation`"}, {"text": "Includes storage design covering knowledge, strategies, capabilities", "passed": false, "evidence": "missing `Storage design`; missing `knowledge`; missing `strateg`; missing `capabilit`"}, {"text": "Provides stepwise reasoning/planning flow", "passed": false, "evidence": "missing `Reasoning/planning flow|flow`; missing `\\\\n1\\\\.|step-by-step`"}, {"text": "Includes local-vs-cloud decision with explicit criteria", "passed": false, "evidence": "missing `Local vs cloud decision|local vs cloud`; missing `latency`; missing `governance`; missing `cost`; missing `complexity`"}, {"text": "Clearly separates priority policy vs planning strategy", "passed": false, "evidence": "missing `priority policy`; missing `planning strategy|strategy`"}, {"text": "Python-only implementation guidance with concrete tools", "passed": false, "evidence": "missing `Python|FastAPI|SQLAlchemy|Alembic|Pydantic`"}, {"text": "Includes risks and mitigations", "passed": false, "evidence": "missing `Risks and mitigations|Risk`"}, {"text": "Includes phased roadmap with measurable KPIs", "passed": false, "evidence": "missing `Implementation roadmap|Phase`; missing `KPI|p95|success rate|policy violations`"}], "summary": {"passed": 0, "total": 8, "pass_rate": 0.0}}}], "previous_feedback": {}, "previous_outputs": {"eval-00-id-1-with_skill": [{"name": "response.md", "type": "text", "content": "1) **Recommended architecture**\nPrimary recommendation: local-first Python architecture with policy-driven planner-executor-verifier loop and explicit strategy/policy stores.\n\n2) **Component diagram in words**\nFastAPI -> Orchestrator -> Policy Engine -> Retriever -> Planner -> Executor -> Verifier -> Telemetry.\n\n3) **Storage design (tables/collections + why)**\nUse `knowledge_items`, `capabilities`, `priority_policies`, `planning_strategies`, `reasoning_runs`, `feedback_events`.\nExample entity: `planning_strategies(id, domain, strategy_json, version, score_quality, score_reliability, updated_at)`.\nWhy: policy defines objectives; strategy defines execution method.\n\n4) **Reasoning/planning flow (step-by-step)**\n1. Classify task and sensitivity.\n2. Load priority policy.\n3. Retrieve knowledge + capabilities + top strategy.\n4. Generate and verify plan.\n5. Execute steps with checkpoints.\n6. Log outcomes and re-score strategy.\n\n5) **Local vs cloud decision with justification**\nCriteria: latency (local lower), governance (local stronger), cost (local better at steady load), complexity (cloud can help hardest tasks).\nDecision: local-first with policy-gated cloud fallback only for allowed low-sensitivity high-complexity tasks.\n\n6) **Python stack recommendation**\nFastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL+pgvector, Redis, Celery/RQ, OpenTelemetry.\n\n7) **Risks and mitigations**\nRisk: stale knowledge -> freshness TTL + source confidence.\nRisk: policy/strategy drift -> versioning + canary rollout.\nRisk: unsafe routing -> deny-by-default cloud policy.\n\n8) **Implementation roadmap (phased)**\nPhase 1: Core pipeline + schema.\nPhase 2: Verifier + policy separation.\nPhase 3: Strategy scoring loop.\nKPIs: p95 latency < 2s, policy violations = 0, task success > 85%.\n"}], "eval-00-id-1-without_skill": [{"name": "response.md", "type": "text", "content": "Use a local-first Python architecture with FastAPI, SQLAlchemy, and PostgreSQL/pgvector.\nKeep knowledge, planning strategies, and capabilities in separate tables and run a planner-executor-verifier loop.\n\nSuggested data: knowledge_items, planning_strategies, capabilities, reasoning_runs, feedback_events.\n\nFlow: classify task, retrieve context, plan, execute, verify, log results.\n\nLocal is generally best for governance and latency; cloud can help for complex or bursty tasks.\n"}], "eval-01-id-2-with_skill": [{"name": "response.md", "type": "text", "content": "1) **Recommended architecture**\nPrimary recommendation: local-first inference and retrieval in a private network, with cloud as optional governed fallback.\n\n2) **Component diagram in words**\nAPI -> Policy Engine -> Retrieval (PostgreSQL+pgvector) -> Planner -> Model Gateway -> Verifier -> Audit Log.\n\n3) **Storage design (tables/collections + why)**\nTables: `knowledge_items`, `knowledge_embeddings`, `priority_policies`, `planning_strategies`, `reasoning_runs`, `audit_events`.\nExample entity: `priority_policies(id, domain, objective_weights_json, hard_constraints_json, effective_from, version)`.\nPolicy and strategy are separate to decouple governance from execution tactics.\n\n4) **Reasoning/planning flow (step-by-step)**\n1. Ingest task.\n2. Apply priority policy constraints.\n3. Retrieve context and strategy.\n4. Build plan and verify constraints.\n5. Execute and score outcome.\n\n5) **Local vs cloud decision with justification**\nLatency: local best; governance: local best; cost: local better for sustained volume; complexity: cloud better for hardest synthesis.\nDecision: choose local-first for your stated constraints.\n\n6) **Python stack recommendation**\nFastAPI, SQLAlchemy, Alembic, psycopg, pgvector-python, asyncio, structlog, Prometheus client.\n\n7) **Risks and mitigations**\nCapacity saturation -> queue + autoscaling.\nMisrouting -> strict policy tests and audit trails.\nEmbedding drift -> scheduled re-embedding.\n\n8) **Implementation roadmap (phased)**\nPhase 1: foundation.\nPhase 2: policy+strategy engine.\nPhase 3: hybrid fallback controls.\nKPIs: p95 < 1.5s, compliance incidents 0, fallback rate < 15%.\n"}], "eval-01-id-2-without_skill": [{"name": "response.md", "type": "text", "content": "For low latency and strict governance, local deployment is generally better than cloud.\nCloud is easier operationally and can provide stronger large-model quality, but has higher governance risk and network latency variability.\n\nUse PostgreSQL + pgvector with Python services (FastAPI, SQLAlchemy, Alembic).\nConsider hybrid fallback for non-sensitive tasks.\n"}], "eval-02-id-3-with_skill": [{"name": "response.md", "type": "text", "content": "1) **Recommended architecture**\nPrimary recommendation: hybrid policy-driven routing with local-by-default execution and cloud planning only when policy allows.\n\n2) **Component diagram in words**\nFastAPI -> Task Classifier -> Policy Engine -> Strategy Selector -> Model Gateway (local/cloud) -> Verifier -> Telemetry Scorer.\n\n3) **Storage design (tables/collections + why)**\n`priority_policies`: objective weights + hard constraints.\n`planning_strategies`: executable templates and branching rules.\n`routing_rules`: thresholds for sensitivity/complexity/cost.\n`reasoning_runs` and `feedback_events`: learning loop.\nExample entity: `routing_rules(id, rule_json, fallback_route, version, enabled)`.\nPolicy vs strategy separation preserves governance stability while allowing strategy optimization.\n\n4) **Reasoning/planning flow (step-by-step)**\n1. Classify request sensitivity and complexity.\n2. Load active priority policy.\n3. Select best strategy by score and domain.\n4. Route local/cloud per policy and thresholds.\n5. Verify outputs and log metrics.\n6. Re-score strategy and update rankings.\n\n5) **Local vs cloud decision with justification**\nLatency: local better; governance: local safer; cost: depends on utilization (local steadier, cloud burst-friendly); complexity: cloud stronger on hardest tasks.\nDecision: hybrid with strict local default and explicit cloud allow-list.\n\n6) **Python stack recommendation**\nFastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL+pgvector, Celery, Redis, OpenTelemetry, pytest.\n\n7) **Risks and mitigations**\nCloud leakage risk -> redaction + deny-by-default egress.\nPolicy contradiction -> policy linting + simulation tests.\nStrategy overfitting -> holdout-based scoring windows.\n\n8) **Implementation roadmap (phased)**\nPhase 1: schema + local route.\nPhase 2: policy/strategy/routing engine.\nPhase 3: cloud fallback + verifier hardening.\nKPIs: success rate > 90%, policy violations 0, p99 < 4s.\n"}], "eval-02-id-3-without_skill": [{"name": "response.md", "type": "text", "content": "Use hybrid routing in Python: local for sensitive tasks, cloud for complex planning when allowed.\nStore strategy templates and policies in Postgres, then route based on sensitivity and complexity.\n\nTrack outcomes in reasoning_runs and feedback tables and re-score strategies over time.\n"}]}, "benchmark": {"skill_name": "architect-llm-reasoning", "iteration": 3, "metrics": {"with_skill": {"eval_count": 3, "avg_pass_rate": 1.0, "avg_word_count": 273.7, "per_eval": [{"eval": "eval-00-id-1", "variant": "with_skill", "passed": 8, "total": 8, "pass_rate": 1.0, "word_count": 295}, {"eval": "eval-01-id-2", "variant": "with_skill", "passed": 8, "total": 8, "pass_rate": 1.0, "word_count": 263}, {"eval": "eval-02-id-3", "variant": "with_skill", "passed": 8, "total": 8, "pass_rate": 1.0, "word_count": 263}], "timing": "not_collected", "tokens": "not_collected"}, "without_skill": {"eval_count": 3, "avg_pass_rate": 0.0417, "avg_word_count": 14.0, "per_eval": [{"eval": "eval-00-id-1", "variant": "without_skill", "passed": 1, "total": 8, "pass_rate": 0.125, "word_count": 14}, {"eval": "eval-01-id-2", "variant": "without_skill", "passed": 0, "total": 8, "pass_rate": 0.0, "word_count": 14}, {"eval": "eval-02-id-3", "variant": "without_skill", "passed": 0, "total": 8, "pass_rate": 0.0, "word_count": 14}], "timing": "not_collected", "tokens": "not_collected"}}, "delta": {"pass_rate_delta": 0.9583, "word_count_delta": 259.7}}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

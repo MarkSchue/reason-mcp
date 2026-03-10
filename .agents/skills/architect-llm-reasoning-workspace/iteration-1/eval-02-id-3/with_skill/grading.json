@@ -1,0 +1,45 @@
+{
+  "run_id": "eval-02-id-3-with_skill",
+  "expectations": [
+    {
+      "text": "Has explicit architecture recommendation",
+      "passed": true,
+      "evidence": "matched `Recommended architecture`; matched `architecture`"
+    },
+    {
+      "text": "Includes storage design for knowledge/plans/capabilities",
+      "passed": true,
+      "evidence": "matched `Storage design`; matched `knowledge`; matched `strateg`; matched `capabilit`"
+    },
+    {
+      "text": "Provides reasoning/planning flow steps",
+      "passed": true,
+      "evidence": "matched `Reasoning/planning flow|Reasoning and planning flow|flow`; matched `\\n1\\.|step-by-step`"
+    },
+    {
+      "text": "Includes local-vs-cloud or routing decision with justification",
+      "passed": true,
+      "evidence": "matched `Local vs cloud decision|local vs cloud|route|routing`; matched `justification|recommendation`"
+    },
+    {
+      "text": "Python-only tooling and implementation guidance",
+      "passed": true,
+      "evidence": "matched `Python`; matched `FastAPI|SQLAlchemy|Alembic|Pydantic`"
+    },
+    {
+      "text": "Includes risks and mitigations",
+      "passed": true,
+      "evidence": "matched `Risks and mitigations|risk`"
+    },
+    {
+      "text": "Includes phased implementation roadmap",
+      "passed": true,
+      "evidence": "matched `Implementation roadmap`; matched `Phase 1|phased`"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "total": 7,
+    "pass_rate": 1.0
+  }
+}
