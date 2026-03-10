@@ -29,6 +29,7 @@ from mcp.server.fastmcp import FastMCP
 
 from reason_mcp.config import config
 from reason_mcp.knowledge.loader import get_knowledge
+from reason_mcp.session_log import SessionLog
 from reason_mcp.tools.reasoning.compressor import compress
 from reason_mcp.tools.reasoning.filter import filter_candidates
 from reason_mcp.tools.reasoning.normalizer import load_aliases, normalize
@@ -123,6 +124,22 @@ def register(mcp: FastMCP) -> None:
         t0 = time.monotonic()
         trace_id = str(uuid.uuid4())[:8]
 
+        # --- Session log (opt-in via REASON_LOG_REQUESTS) ---
+        slog = SessionLog("reasoning_analyze_context", request_id, timestamp)
+        if config.log_requests:
+            slog.record_request({
+                "request_id": request_id,
+                "timestamp": timestamp,
+                "observations": observations,
+                "domain": domain,
+                "subject_id": subject_id,
+                "context_state": context_state,
+                "keywords": keywords,
+                "top_k": top_k,
+                "min_relevance": min_relevance,
+                "semantic_min_score": semantic_min_score,
+            })
+
         effective_top_k = top_k if top_k is not None else config.default_top_k
         effective_min_rel = min_relevance if min_relevance is not None else config.min_relevance
 
@@ -133,13 +150,29 @@ def register(mcp: FastMCP) -> None:
         # --- Pipeline ---
         # 1. Prune nominal observations (no-op when observations list is empty)
         pruned_obs = prune(observations) if observations else []
+        if config.log_requests:
+            slog.record_step("Step 1 — Pruner", {
+                "input_count": len(observations) if observations else 0,
+                "pruned_count": len(pruned_obs),
+                "pruned_observations": pruned_obs,
+            })
 
         # 2. Normalise observation IDs via taxonomy aliases
         normalised_obs = normalize(pruned_obs, aliases)
         obs_ids = {o["observation_id"] for o in normalised_obs}
+        if config.log_requests:
+            slog.record_step("Step 2 — Normalizer", {
+                "normalised_observations": normalised_obs,
+                "obs_ids": sorted(obs_ids),
+            })
 
         # 3. Normalise keywords to lowercase for case-insensitive matching
         kw_set = {k.lower() for k in keywords} if keywords else set()
+        if config.log_requests:
+            slog.record_step("Step 3 — Keyword extraction", {
+                "input_keywords": keywords or [],
+                "normalised_keyword_set": sorted(kw_set),
+            })
 
         # 4. Build semantic query text — semantic path always runs in parallel
         nl_parts: list[str] = []
@@ -150,6 +183,12 @@ def register(mcp: FastMCP) -> None:
             nl_parts.append(str(obs.get("value", "")))
         effective_semantic_query: str | None = " ".join(nl_parts) if nl_parts else None
         effective_index_dir: str = str(config.knowledge_dir / ".semantic_index")
+        if config.log_requests:
+            slog.record_step("Step 4 — Semantic query construction", {
+                "effective_semantic_query": effective_semantic_query,
+                "index_dir": effective_index_dir,
+                "semantic_min_score": semantic_min_score,
+            })
 
         # 5. Filter candidate rules (observations OR keywords OR semantic)
         candidates = filter_candidates(
@@ -162,6 +201,40 @@ def register(mcp: FastMCP) -> None:
             semantic_min_score=semantic_min_score,
             index_dir=effective_index_dir,
         )
+        if config.log_requests:
+            _path_a = [
+                {"rule_id": c.get("rule_id"), "det_score": round(c.get("_det_score", 0), 4)}
+                for c in candidates if c.get("_det_score", 0) > 0
+            ]
+            _path_b = [
+                {"rule_id": c.get("rule_id"), "sem_score": round(c.get("_sem_score", 0), 4)}
+                for c in candidates if c.get("_sem_score", 0) > 0
+            ]
+            _both = sorted(
+                c.get("rule_id") for c in candidates
+                if c.get("_det_score", 0) > 0 and c.get("_sem_score", 0) > 0
+            )
+            slog.record_step("Step 5A — Path A (Deterministic retrieval)", {
+                "matched_count": len(_path_a),
+                "rules": _path_a,
+            })
+            slog.record_step("Step 5B — Path B (Semantic retrieval)", {
+                "query": effective_semantic_query,
+                "matched_count": len(_path_b),
+                "rules": _path_b,
+            })
+            slog.record_step("Step 5C — Union & score annotation", {
+                "total_candidates": len(candidates),
+                "found_by_both_paths": _both,
+                "all_candidates": [
+                    {
+                        "rule_id": c.get("rule_id"),
+                        "det_score": round(c.get("_det_score", 0), 4),
+                        "sem_score": round(c.get("_sem_score", 0), 4),
+                    }
+                    for c in candidates
+                ],
+            })
 
         # 6. Rank, compress to top_k, strip metadata
         lean_rules = compress(
@@ -170,6 +243,13 @@ def register(mcp: FastMCP) -> None:
             top_k=effective_top_k,
             min_relevance=effective_min_rel,
         )
+        if config.log_requests:
+            slog.record_step("Step 6 — Compressor (top-k ranking)", {
+                "top_k": effective_top_k,
+                "min_relevance": effective_min_rel,
+                "lean_rules_count": len(lean_rules),
+                "selected_rule_ids": [r.get("rule_id") for r in lean_rules],
+            })
 
         # 7. Render rules as #Rule N: formatted text for direct LLM injection
         latency_ms = round((time.monotonic() - t0) * 1000, 1)
@@ -180,7 +260,7 @@ def register(mcp: FastMCP) -> None:
             summary = "No domain rules matched the current observations or keywords."
             status = "partial"
 
-        return {
+        result = {
             "request_id": request_id,
             "status": status,
             "result": {
@@ -200,3 +280,13 @@ def register(mcp: FastMCP) -> None:
                 "trace_id": trace_id,
             },
         }
+        if config.log_requests:
+            slog.record_decision(
+                f"status={status!r}: {len(lean_rules)} rule(s) selected from "
+                f"{len(candidates)} candidate(s) (top_k={effective_top_k}, "
+                f"min_relevance={effective_min_rel})."
+            )
+            slog.record_result(result)
+            log_path = slog.write(config.output_dir)
+            logger.info("session_log_written", path=str(log_path), request_id=request_id)
+        return result

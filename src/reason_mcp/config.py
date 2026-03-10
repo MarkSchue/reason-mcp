@@ -17,6 +17,9 @@ class Config:
     min_relevance: float
     max_summary_chars: int
     log_level: str
+    warm_semantic: bool
+    log_requests: bool
+    output_dir: Path
 
     def __init__(self) -> None:
         self.knowledge_dir = Path(
@@ -31,6 +34,13 @@ class Config:
         self.warm_semantic: bool = os.environ.get("REASON_WARM_SEMANTIC", "").lower() in (
             "1", "true", "yes"
         )
+        # When true, each MCP request is written as a Markdown session log to output_dir.
+        self.log_requests: bool = os.environ.get("REASON_LOG_REQUESTS", "").lower() in (
+            "1", "true", "yes"
+        )
+        self.output_dir: Path = Path(
+            os.environ.get("REASON_OUTPUT_DIR", "./output")
+        ).resolve()
 
 
 # Module-level singleton – import this wherever config is needed.

@@ -82,11 +82,6 @@
       "severity": 2,
       "specificity": 0.95
     }
-  },
-  {
-    "rule_id": "R-4",
-    "domain": "CarFacts",
-    "active": true,
-    "trigger": {
-        "keywords": ["car", "vehicle", "convertible", "red car", "fleet"]
+  }
+
 ]

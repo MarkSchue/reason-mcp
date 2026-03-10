@@ -8,7 +8,11 @@
         "REASON_DEFAULT_TOP_K": "3",
         "REASON_MIN_RELEVANCE": "0.5",
         "REASON_MAX_SUMMARY_CHARS": "900",
-        "REASON_LOG_LEVEL": "INFO"
+        "REASON_LOG_LEVEL": "INFO",
+        // Set to "1" to write a Markdown session log for every MCP request.
+        "REASON_LOG_REQUESTS": "0",
+        // Output directory for session log files (default: <workspaceFolder>/output).
+        "REASON_OUTPUT_DIR": "${workspaceFolder}/output"
       }
     }
   }
