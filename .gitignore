@@ -35,11 +35,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Knowledge store – project-specific data is not committed
-# (commit only the example/ fixtures)
-knowledge/*/
-!knowledge/example/
-!knowledge/.gitkeep
-
-# Semantic index lives under the knowledge directory and is large/binary
-knowledge/example/.semantic_index/
+# Knowledge store – project-specific data is not committed.
+# Add a seeds/<domain>.py module instead of dropping JSON files here.
+knowledge/

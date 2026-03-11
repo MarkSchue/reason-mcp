@@ -24,8 +24,8 @@ pip install -e ".[dev,semantic]"
 cp .env.example .env
 # Edit .env: set REASON_ARANGO_URL, REASON_ARANGO_USER, REASON_ARANGO_PASSWORD
 
-# Seed the example knowledge into ArangoDB
-python scripts/seed_arango.py --knowledge-dir knowledge/example
+# Seed the built-in example rules into ArangoDB
+python scripts/seed_arango.py
 
 # Run the server
 reason-mcp
@@ -36,22 +36,33 @@ pytest
 
 ## Adding a knowledge domain
 
-1. Create a knowledge directory with the standard layout:
+1. Add a new module to the `seeds/` package, e.g. `seeds/my_domain.py`:
 
-```
-knowledge/
-└── my-project/
-    ├── rules/        ← *.json rule pack files
-    └── edges/        ← *.json edge/relationship files (optional)
+```python
+RULES: list[dict] = [
+    {
+        "rule_id": "MY-001",
+        "domain": "my_domain",
+        "active": True,
+        "trigger": {"keywords": ["example"]},
+        "conditions": {"natural_language": "Example condition."},
+        "reasoning": {"possible_causes": ["example cause"]},
+        "recommendation": {"action": "Do something.", "urgency": "low"},
+        "scoring": {"severity": 1, "specificity": 0.8},
+    },
+]
+EDGES: list[dict] = []
 ```
 
-2. Seed it into ArangoDB:
+2. Register it in `seeds/__init__.py` by importing and extending `RULES`/`EDGES`.
+
+3. Seed into ArangoDB:
 
 ```bash
-python scripts/seed_arango.py --knowledge-dir knowledge/my-project
+python scripts/seed_arango.py
 ```
 
-No code changes needed.
+No code changes to the server are needed.
 
 ## Documentation
 
@@ -75,8 +86,12 @@ src/reason_mcp/          ← server + tool implementations
   tools/reasoning/
     embedder.py          ← SentenceTransformer embeddings + search_rules()
     filter.py            ← dual-path retrieval (deterministic + semantic)
-knowledge/example/       ← reference knowledge fixtures (JSON)
-scripts/seed_arango.py   ← idempotent seed script (JSON → ArangoDB)
+seeds/                   ← initial domain knowledge as Python data
+  __init__.py            ← aggregates RULES + EDGES from all domain modules
+  car_facts.py           ← CarFacts domain (CAR-1, CAR-2, CAR-3)
+  praxis.py              ← Praxisbesetzung domain (PRAX-1, PRAX-2 + fallback edges)
+  fleet_and_industrial.py ← fleet_tracking + industrial (6 rules)
+scripts/seed_arango.py   ← idempotent seed script (seeds package → ArangoDB)
 tests/                   ← unit tests (28 passing)
 plans/                   ← architecture documentation
 requirements/            ← requirement specifications
