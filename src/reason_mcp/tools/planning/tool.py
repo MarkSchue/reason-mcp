@@ -67,7 +67,7 @@ def register(mcp: FastMCP) -> None:
             })
 
         # Load planning knowledge (strategies, skills, component knowledge)
-        rules = get_knowledge(config.knowledge_dir)
+        rules = get_knowledge()
         strategies = [r for r in rules if r.get("type") == "strategy"]
         skills = [r for r in rules if r.get("type") == "skill"]
         if config.log_requests:
@@ -112,7 +112,7 @@ def register(mcp: FastMCP) -> None:
             "execution_graph": graph,
             "dry_run_result": dry_run_result,
             "meta": {
-                "knowledge_version": "json-file",
+                "knowledge_version": "arangodb",
                 "latency_ms": latency_ms,
                 "strategy_used": graph.get("strategy_id"),
                 "trace_id": trace_id,

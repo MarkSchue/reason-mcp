@@ -286,7 +286,7 @@ def test_filter_semantic_query_adds_stage2_candidates(monkeypatch):
     """Rules found only by semantic search are included in the candidate set."""
     sem_rule = _sem_rule("R-SEM-001")
 
-    def fake_search(query, index_dir, rules, top_k, min_score, domain):
+    def fake_search(query, top_k, min_score, domain):
         return [("R-SEM-001", 0.82)]
 
     monkeypatch.setattr(
@@ -298,7 +298,6 @@ def test_filter_semantic_query_adds_stage2_candidates(monkeypatch):
         domain="fleet_tracking",
         semantic_query="some query text",
         semantic_min_score=0.75,
-        index_dir="/tmp/fake_index",
     )
     ids = [r["rule_id"] for r in result]
     assert "R-SEM-001" in ids
@@ -333,7 +332,7 @@ def test_filter_parallel_union_includes_both_paths(monkeypatch):
     catch_all = _sem_rule("R-CATCHALL")  # no trigger criteria → always det hit
     targeted = _sem_rule("R-TARGET")     # only returned by semantic path
 
-    def fake_search(query, index_dir, rules, top_k, min_score, domain):
+    def fake_search(query, top_k, min_score, domain):
         return [("R-TARGET", 0.91)]
 
     monkeypatch.setattr(
@@ -345,7 +344,6 @@ def test_filter_parallel_union_includes_both_paths(monkeypatch):
         domain="fleet_tracking",
         semantic_query="targeted query",
         semantic_min_score=0.75,
-        index_dir="/tmp/fake_index",
     )
     ids = [r["rule_id"] for r in result]
     # Both paths contribute — neither suppresses the other
@@ -375,7 +373,7 @@ def test_filter_semantic_finds_rule_with_unmatched_keyword_trigger(monkeypatch):
         "scoring": {"specificity": 0.9},
     }
 
-    def fake_search(query, index_dir, rules, top_k, min_score, domain):
+    def fake_search(query, top_k, min_score, domain):
         # Semantic finds R-MUELLER even though det keywords don't match
         return [("R-MUELLER", 0.78)]
 
@@ -389,7 +387,6 @@ def test_filter_semantic_finds_rule_with_unmatched_keyword_trigger(monkeypatch):
         keywords={"montag", "muller", "nicht da"},  # keyword mismatch with trigger
         semantic_query="Hr. Müller montag nicht da",
         semantic_min_score=0.70,
-        index_dir="/tmp/fake_index",
     )
     ids = [r["rule_id"] for r in result]
     assert "R-MUELLER" in ids
@@ -400,7 +397,7 @@ def test_filter_semantic_finds_rule_with_unmatched_keyword_trigger(monkeypatch):
 
 def test_filter_det_path_still_works_when_semantic_fails(monkeypatch):
     """If the embedder raises, the deterministic path result is still returned."""
-    def fake_search_error(query, index_dir, rules, top_k, min_score, domain):
+    def fake_search_error(query, top_k, min_score, domain):
         raise RuntimeError("model not available")
 
     monkeypatch.setattr(
@@ -412,7 +409,6 @@ def test_filter_det_path_still_works_when_semantic_fails(monkeypatch):
         domain="fleet_tracking",
         semantic_query="some query",
         semantic_min_score=0.75,
-        index_dir="/tmp/fake_index",
     )
     ids = [r["rule_id"] for r in result]
     assert "R-001" in ids  # deterministic obs_match still works
@@ -422,7 +418,7 @@ def test_filter_semantic_domain_not_passed_when_none(monkeypatch):
     """When no domain is specified, semantic search is called with domain=None."""
     calls = []
 
-    def fake_search(query, index_dir, rules, top_k, min_score, domain):
+    def fake_search(query, top_k, min_score, domain):
         calls.append(domain)
         return []
 
@@ -434,7 +430,6 @@ def test_filter_semantic_domain_not_passed_when_none(monkeypatch):
         set(),
         domain=None,
         semantic_query="any query",
-        index_dir="/tmp/fake_index",
     )
     assert calls == [None]
 

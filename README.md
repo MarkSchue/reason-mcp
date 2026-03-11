@@ -8,8 +8,8 @@ project-specific domain knowledge. The server exposes two tools:
 | `reasoning_analyze_context` | Retrieves relevant domain rules and facts for a set of observations, returning a lean knowledge bundle the Host LLM uses to reason. |
 | `planning_generate_plan` | Generates a validated execution graph (DAG) for a goal, with a dry-run simulation verifying pre/post-conditions before execution. |
 
-The server is **domain-agnostic** — different projects plug in their own knowledge by
-pointing `REASON_KNOWLEDGE_DIR` at a folder of JSON rule packs and fact files.
+The server is **domain-agnostic** — domain knowledge is stored in ArangoDB and
+injected at query time.  Rules are seeded from JSON files via `scripts/seed_arango.py`.
 
 ---
 
@@ -18,11 +18,14 @@ pointing `REASON_KNOWLEDGE_DIR` at a folder of JSON rule packs and fact files.
 ```bash
 # Set up environment
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,semantic]"
 
-# Use the example knowledge store
+# Configure ArangoDB credentials
 cp .env.example .env
-# edit .env: REASON_KNOWLEDGE_DIR=./knowledge/example
+# Edit .env: set REASON_ARANGO_URL, REASON_ARANGO_USER, REASON_ARANGO_PASSWORD
+
+# Seed the example knowledge into ArangoDB
+python scripts/seed_arango.py --knowledge-dir knowledge/example
 
 # Run the server
 reason-mcp
@@ -33,15 +36,22 @@ pytest
 
 ## Adding a knowledge domain
 
+1. Create a knowledge directory with the standard layout:
+
 ```
 knowledge/
 └── my-project/
-    ├── rules/          ← *.json rule pack files (conditions embed facts inline)
-    └── taxonomy/
-        └── aliases.json  ← raw_sensor_id → OBS_CANONICAL_ID
+    ├── rules/        ← *.json rule pack files
+    └── edges/        ← *.json edge/relationship files (optional)
 ```
 
-Set `REASON_KNOWLEDGE_DIR=./knowledge/my-project` and restart. No code changes needed.
+2. Seed it into ArangoDB:
+
+```bash
+python scripts/seed_arango.py --knowledge-dir knowledge/my-project
+```
+
+No code changes needed.
 
 ## Documentation
 
@@ -58,9 +68,17 @@ Set `REASON_KNOWLEDGE_DIR=./knowledge/my-project` and restart. No code changes n
 ## Project layout
 
 ```
-src/reason_mcp/      ← server + tool implementations
-knowledge/example/   ← reference knowledge fixtures
-tests/               ← unit tests (13 passing)
-plans/               ← architecture documentation
-requirements/        ← requirement specifications
+src/reason_mcp/          ← server + tool implementations
+  knowledge/
+    arango_client.py     ← ArangoDB connection, CRUD, vector search
+    loader.py            ← in-process LRU cache over ArangoDB
+  tools/reasoning/
+    embedder.py          ← SentenceTransformer embeddings + search_rules()
+    filter.py            ← dual-path retrieval (deterministic + semantic)
+knowledge/example/       ← reference knowledge fixtures (JSON)
+scripts/seed_arango.py   ← idempotent seed script (JSON → ArangoDB)
+tests/                   ← unit tests (28 passing)
+plans/                   ← architecture documentation
+requirements/            ← requirement specifications
 ```
+

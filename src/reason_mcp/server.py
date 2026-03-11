@@ -1,9 +1,9 @@
 """MCP server entry point.
 
 Registers all tools (reasoning, planning) and starts the server.
-This server is general-purpose: domain knowledge is injected at runtime
-via the REASON_KNOWLEDGE_DIR environment variable, making it reusable
-across different projects and scenarios.
+This server is general-purpose: domain knowledge is stored in ArangoDB and
+injected at query time via the knowledge loader.  Connection parameters are
+read from environment variables (or a .env file — see .env.example).
 """
 
 from __future__ import annotations
@@ -47,48 +47,45 @@ def _configure_logging() -> None:
     )
 
 
+def _test_arango_connection() -> None:
+    """Verify that ArangoDB is reachable and the database exists.
+
+    Calls :func:`reason_mcp.knowledge.arango_client.ensure_collections` which
+    is idempotent — safe to call on every startup.  Logs a warning and
+    continues gracefully if the database is unreachable rather than crashing
+    the server process.
+    """
+    try:
+        from reason_mcp.knowledge.arango_client import ensure_collections
+
+        ensure_collections()
+        logger.info(
+            "arango connection verified",
+            url=config.arango_url,
+            db=config.arango_db,
+        )
+    except Exception as exc:
+        logger.warning(
+            "arango connection failed at startup — knowledge queries will fail "
+            "until the database is available",
+            error=str(exc),
+            url=config.arango_url,
+            db=config.arango_db,
+        )
+
+
 def main() -> None:
-    """CLI entry point: start the MCP server (defined in pyproject.toml).
-
-    Set REASON_WARM_SEMANTIC=1 to pre-build the ChromaDB vector index and
-    download the embedding model before accepting the first request.
-    """
+    """CLI entry point: start the MCP server (defined in pyproject.toml)."""
     _configure_logging()
-    logger.info("starting reason-mcp", knowledge_dir=str(config.knowledge_dir))
-
-    if config.warm_semantic:
-        logger.info("REASON_WARM_SEMANTIC=1 — pre-warming semantic index")
-        _prewarm_semantic()
-
+    logger.info(
+        "starting reason-mcp",
+        arango_url=config.arango_url,
+        arango_db=config.arango_db,
+    )
+    _test_arango_connection()
     mcp.run()
-
-
-def index_main() -> None:
-    """CLI entry point for the ``reason-mcp-index`` command.
-
-    Loads the knowledge rules, downloads the embedding model if needed, and
-    (re)builds the ChromaDB vector index.  Safe to run multiple times; each
-    run refreshes the index from the current knowledge files.
-
-    Usage::
-
-        REASON_KNOWLEDGE_DIR=/path/to/knowledge reason-mcp-index
-    """
-    _configure_logging()
-    logger.info("reason-mcp-index: building semantic index", knowledge_dir=str(config.knowledge_dir))
-    _prewarm_semantic()
-    logger.info("reason-mcp-index: done")
-
-
-def _prewarm_semantic() -> None:
-    """Load rules and call embedder.prewarm() — shared by main() and index_main()."""
-    from reason_mcp.knowledge.loader import get_knowledge
-    from reason_mcp.tools.reasoning.embedder import prewarm
-
-    rules = get_knowledge(config.knowledge_dir)
-    index_dir = config.knowledge_dir / ".semantic_index"
-    prewarm(index_dir, rules)
 
 
 if __name__ == "__main__":
     main()
+

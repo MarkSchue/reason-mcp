@@ -144,8 +144,8 @@ def register(mcp: FastMCP) -> None:
         effective_min_rel = min_relevance if min_relevance is not None else config.min_relevance
 
         # --- Load knowledge (cached) ---
-        rules = get_knowledge(config.knowledge_dir)
-        aliases = load_aliases(config.knowledge_dir)
+        rules = get_knowledge()
+        aliases = load_aliases()
 
         # --- Pipeline ---
         # 1. Prune nominal observations (no-op when observations list is empty)
@@ -193,11 +193,9 @@ def register(mcp: FastMCP) -> None:
             nl_parts.append(str(obs.get("observation_id", "")))
             nl_parts.append(str(obs.get("value", "")))
         effective_semantic_query: str | None = " ".join(nl_parts) if nl_parts else None
-        effective_index_dir: str = str(config.knowledge_dir / ".semantic_index")
         if config.log_requests:
             slog.record_step("Step 4B — Semantic query construction", {
                 "effective_semantic_query": effective_semantic_query,
-                "index_dir": effective_index_dir,
                 "semantic_min_score": semantic_min_score,
             })
 
@@ -210,7 +208,6 @@ def register(mcp: FastMCP) -> None:
             keywords=kw_set,
             semantic_query=effective_semantic_query,
             semantic_min_score=semantic_min_score,
-            index_dir=effective_index_dir,
         )
         if config.log_requests:
             _path_a = [
@@ -279,7 +276,7 @@ def register(mcp: FastMCP) -> None:
                 "summary_for_llm": summary,
             },
             "meta": {
-                "knowledge_version": "json-file",
+                "knowledge_version": "arangodb",
                 "latency_ms": latency_ms,
                 "candidate_count": len(candidates),
                 "matched_count": len(lean_rules),

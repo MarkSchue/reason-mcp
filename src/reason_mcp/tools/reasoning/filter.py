@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -120,7 +119,6 @@ def _det_candidates(
 def _sem_candidates(
     rules: list[dict[str, Any]],
     semantic_query: str,
-    index_dir: Path,
     min_score: float,
     domain: str | None,
 ) -> list[tuple[dict[str, Any], float]]:
@@ -141,8 +139,6 @@ def _sem_candidates(
     try:
         hits: list[tuple[str, float]] = _search(
             semantic_query,
-            index_dir,
-            rules,
             top_k=len(rules),   # retrieve all; compressor applies top_k cap
             min_score=min_score,
             domain=domain,
@@ -165,8 +161,7 @@ def filter_candidates(
     context_state: str | None = None,
     keywords: set[str] | None = None,
     semantic_query: str | None = None,
-    semantic_min_score: float = 0.75,
-    index_dir: Any | None = None,
+    semantic_min_score: float = 0.45,
 ) -> list[dict[str, Any]]:
     """Return the union of deterministic and semantic candidate rules.
 
@@ -176,17 +171,16 @@ def filter_candidates(
     downstream ranking by the compressor.
 
     Args:
-        rules: Full rule list from the knowledge directory.
+        rules: Full rule list from the ArangoDB rules collection.
         observation_ids: Normalised observation IDs in the current request.
         domain: Optional domain hint — rules with a different domain are excluded.
         context_state: Optional context state — rules requiring a different state
             are excluded (deterministic path only).
         keywords: Lowercase keywords from a natural-language query, matched
             against ``trigger.keywords``.
-        semantic_query: NL text to embed and match against the rule vector index.
+        semantic_query: NL text to embed and match against the ArangoDB vector index.
             When omitted, only the deterministic path runs.
         semantic_min_score: Minimum cosine similarity for a semantic hit.
-        index_dir: Path to the Chroma index.  Required when *semantic_query* is set.
     """
     query_kw: set[str] = set()
     if keywords:
@@ -203,11 +197,10 @@ def filter_candidates(
 
     # --- Path B: semantic (always active) ---
     sem_by_key: dict[str, tuple[dict[str, Any], float]] = {}
-    if semantic_query and index_dir is not None:
+    if semantic_query:
         sem_results = _sem_candidates(
             rules,
             semantic_query,
-            Path(index_dir),
             semantic_min_score,
             domain,
         )

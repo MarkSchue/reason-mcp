@@ -2,9 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "reason-mcp: Rebuild Semantic Index",
+      "label": "reason-mcp: Seed ArangoDB",
       "type": "shell",
-      "command": "${workspaceFolder}/scripts/rebuild_index.sh ${workspaceFolder}/knowledge/example",
+      "command": "${workspaceFolder}/.venv/bin/python ${workspaceFolder}/scripts/seed_arango.py --knowledge-dir ${workspaceFolder}/knowledge/example",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -13,12 +13,26 @@
         "clear": true
       },
       "problemMatcher": [],
-      "detail": "Invalidates the ChromaDB semantic index and rebuilds it from the current knowledge rules. Run this after editing any rule JSON file."
+      "detail": "Generate embeddings for all rules and upsert them into ArangoDB. Run this after editing any rule JSON file."
+    },
+    {
+      "label": "reason-mcp: Seed ArangoDB (dry run)",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python ${workspaceFolder}/scripts/seed_arango.py --knowledge-dir ${workspaceFolder}/knowledge/example --dry-run",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Dry-run seed: generate embeddings and print what would be written, without touching ArangoDB."
     },
     {
       "label": "reason-mcp: Start Server",
       "type": "shell",
-      "command": "REASON_KNOWLEDGE_DIR=${workspaceFolder}/knowledge/example REASON_LOG_LEVEL=INFO ${workspaceFolder}/.venv/bin/reason-mcp",
+      "command": "REASON_LOG_LEVEL=INFO ${workspaceFolder}/.venv/bin/reason-mcp",
       "group": "build",
       "isBackground": true,
       "presentation": {
@@ -28,22 +42,7 @@
         "clear": true
       },
       "problemMatcher": [],
-      "detail": "Start the reason-mcp server with the example knowledge directory."
-    },
-    {
-      "label": "reason-mcp: Start Server (warm semantic index)",
-      "type": "shell",
-      "command": "REASON_KNOWLEDGE_DIR=${workspaceFolder}/knowledge/example REASON_WARM_SEMANTIC=1 REASON_LOG_LEVEL=INFO ${workspaceFolder}/.venv/bin/reason-mcp",
-      "group": "build",
-      "isBackground": true,
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false,
-        "clear": true
-      },
-      "problemMatcher": [],
-      "detail": "Start the reason-mcp server and pre-warm the semantic index before accepting the first request."
+      "detail": "Start the reason-mcp server. ArangoDB credentials are loaded from .env."
     }
   ]
 }

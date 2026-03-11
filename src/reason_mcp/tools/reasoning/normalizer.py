@@ -7,10 +7,8 @@ keys used in rules.  Aliases are loaded from
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-import orjson
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -18,18 +16,15 @@ logger = structlog.get_logger(__name__)
 AliasMap = dict[str, str]  # raw_key -> canonical_key
 
 
-def load_aliases(knowledge_dir: Path) -> AliasMap:
-    """Load concept aliases from taxonomy/aliases.json (optional file)."""
-    path = knowledge_dir / "taxonomy" / "aliases.json"
-    if not path.exists():
-        return {}
-    try:
-        data: dict[str, str] = orjson.loads(path.read_bytes())
-        logger.debug("aliases loaded", count=len(data))
-        return data
-    except Exception:
-        logger.exception("failed to load aliases", path=str(path))
-        return {}
+def load_aliases() -> AliasMap:
+    """Return an empty alias map.
+
+    Alias-based normalisation has been retired.  Observation IDs are now
+    expected to be globally unique canonical keys by the time they reach the
+    reasoning pipeline.  This function is kept to preserve call-site
+    compatibility but always returns an empty dict (a pass-through).
+    """
+    return {}
 
 
 def normalize(

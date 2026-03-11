@@ -14,12 +14,13 @@ dependencies = [
     "orjson>=3.10.0",
     "structlog>=24.4.0",
     "watchfiles>=0.23.0",
+    "python-arango>=7.6.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
 semantic = [
     "sentence-transformers>=3.0.0",
-    "chromadb>=0.5.0",
 ]
 dev = [
     "pytest>=8.2.0",
@@ -31,7 +32,6 @@ dev = [
 
 [project.scripts]
 reason-mcp = "reason_mcp.server:main"
-reason-mcp-index = "reason_mcp.server:index_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
