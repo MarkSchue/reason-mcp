@@ -103,27 +103,55 @@ def ensure_collections() -> None:
         coll.add_persistent_index(fields=["rule_id"], unique=False, sparse=False, name="idx_rule_id")
         logger.info("created rule_id index")
 
-    # Vector index (ArangoDB 3.12+). Wrapped in try/except so that older
-    # ArangoDB installations still work — vector search automatically falls
-    # back to Python-side cosine similarity when the index is absent.
-    if _VECTOR_INDEX_NAME not in existing_names:
-        try:
-            coll.add_index({
-                "type": "vector",
-                "name": _VECTOR_INDEX_NAME,
-                "fields": ["embedding"],
-                "params": {
-                    "dimension": _EMBEDDING_DIM,
-                    "metric": "cosine",
-                    "nLists": max(1, 2),
-                },
-            })
-            logger.info("created vector index", index=_VECTOR_INDEX_NAME, dim=_EMBEDDING_DIM)
-        except Exception as exc:
-            logger.warning(
-                "vector index creation skipped — falling back to Python-side cosine",
-                reason=str(exc),
-            )
+    # NOTE: The vector index is intentionally NOT created here.
+    # ArangoDB requires documents with embedding data to exist before training
+    # the index (it cannot be created on an empty collection).  Call
+    # ``ensure_vector_index(n_docs)`` separately after upserting documents.
+
+
+def ensure_vector_index(n_docs: int) -> None:
+    """Create (or skip if already present) the vector index on the rules collection.
+
+    Must be called **after** documents with ``embedding`` arrays have been
+    upserted, because ArangoDB trains the index on existing data.
+
+    Args:
+        n_docs: Number of documents in the collection.  Used to compute
+            ``nLists`` per the Faiss recommendation of ``15 * sqrt(N)``.
+    """
+    from reason_mcp.config import config
+
+    db = get_db()
+    coll = db.collection(config.arango_rules_coll)
+    existing_names = {idx.get("name") for idx in coll.indexes()}
+    if _VECTOR_INDEX_NAME in existing_names:
+        logger.info("vector index already exists — skipping", index=_VECTOR_INDEX_NAME)
+        return
+
+    # nLists: ~15*sqrt(N), clamped to [1, N] so it never exceeds doc count.
+    n_lists = max(1, min(n_docs, round(15 * math.sqrt(max(1, n_docs)))))
+    try:
+        coll.add_index({
+            "type": "vector",
+            "name": _VECTOR_INDEX_NAME,
+            "fields": ["embedding"],
+            "params": {
+                "dimension": _EMBEDDING_DIM,
+                "metric": "cosine",
+                "nLists": n_lists,
+            },
+        })
+        logger.info(
+            "created vector index",
+            index=_VECTOR_INDEX_NAME,
+            dim=_EMBEDDING_DIM,
+            n_lists=n_lists,
+        )
+    except Exception as exc:
+        logger.warning(
+            "vector index creation skipped — falling back to Python-side cosine",
+            reason=str(exc),
+        )
 
 
 # ---------------------------------------------------------------------------

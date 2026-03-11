@@ -141,17 +141,22 @@ def seed(
         print("\nDry run complete — no data written.")
         return
 
-    # Step 3 — Ensure schema
+    # Step 3 — Ensure schema (collections + persistent indexes only).
+    # The vector index is created in step 4b, AFTER documents are upserted,
+    # because ArangoDB trains the index on existing embedding data.
     print("\n[3/4] Ensuring ArangoDB schema…")
-    from reason_mcp.knowledge.arango_client import ensure_collections
+    from reason_mcp.knowledge.arango_client import (
+        ensure_collections,
+        ensure_vector_index,
+        upsert_edge,
+        upsert_rule,
+    )
 
     ensure_collections()
     print("  Collections and indexes verified/created.")
 
-    # Step 4 — Upsert
+    # Step 4 — Upsert documents, then build vector index.
     print("\n[4/4] Upserting documents…")
-    from reason_mcp.knowledge.arango_client import upsert_edge, upsert_rule
-
     for rule in rules:
         upsert_rule(rule)
     print(f"  Upserted {len(rules)} rules.")
@@ -166,6 +171,10 @@ def seed(
 
     seeded_edges = len(edges) - edge_errors
     print(f"  Upserted {seeded_edges} edges.")
+
+    # Build vector index after data is in place (ArangoDB requirement).
+    print("  Building vector index…")
+    ensure_vector_index(n_docs=len(rules))
     print(f"\nSeed complete: {len(rules)} rules, {seeded_edges} edges written to ArangoDB.")
 
 
