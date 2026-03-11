@@ -187,8 +187,11 @@ def filter_candidates(
         for k in keywords:
             query_kw |= _expand_kw(k)
 
+    # Ensure observation_ids is always a set (callers may pass a list)
+    obs_id_set: set[str] = set(observation_ids) if observation_ids else set()
+
     # --- Path A: deterministic ---
-    det_results = _det_candidates(rules, observation_ids, query_kw, domain, context_state)
+    det_results = _det_candidates(rules, obs_id_set, query_kw, domain, context_state)
     # Key by composite (domain::rule_id) — avoids last-write-wins collision when
     # multiple knowledge files share the same rule_id across different domains.
     det_by_key: dict[str, tuple[dict[str, Any], float]] = {
