@@ -2,9 +2,9 @@
 
 ## 1) Recommended architecture (1-2 paragraphs)
 
-Primary recommendation: build a **local-first, deterministic MCP reasoning service** that uses domain knowledge JSON rule packs as the authoritative source and treats all runtime inputs as **observations**. The system should support broad domain portability by avoiding domain-specific field assumptions and operating on normalized observation objects, context attributes, and policy-driven reasoning strategies.
+Primary recommendation: build a **local-first, semantic MCP reasoning service** that uses domain knowledge JSON rule packs as the authoritative source and treats all runtime inputs as **observations**. The system should support broad domain portability by avoiding domain-specific field assumptions and operating on normalized observation objects, context attributes, and policy-driven reasoning strategies.
 
-For MVP, use one MCP endpoint (`reasoning.analyze_context`) guided by the **"Lean Context Injection"** principle. The system employs strict relevance controls to ensure the prompt window remains as lean as possible—it returns only the **top-k ranked candidate rules** relevant to the given observations. Any physical constants or domain-specific limits are embedded directly within rule conditions and are therefore included automatically. The tool injects *what is really needed, but nothing more*. Keep planning as a separate concern in a dedicated MCP tool. Store reasoning runs immediately so execution logs can be correlated by external tools. This design is migration-ready: JSON files are the authoring source today and can be ingested into SQLite later with near-identical entities.
+For MVP, use one MCP endpoint (`reasoning.analyze_context`) guided by the **"Lean Context Injection"** principle. The system employs strict relevance controls to ensure the prompt window remains as lean as possible—it returns only the **top-k ranked candidate rules** relevant to the given observations. Any physical constants or domain-specific limits are embedded directly within rule conditions and are therefore included automatically. The tool injects *what is really needed, but nothing more*. Keep planning as a separate concern in a dedicated MCP tool. Store reasoning runs immediately so execution logs can be correlated by external tools. JSON files remain the authoring source; ArangoDB is the runtime store — populated by idempotent seed scripts that embed and upsert both rules and graph nodes.
 
 ---
 
@@ -16,12 +16,15 @@ Request path (reasoning-first):
 2. **MCP API Layer** validates schema and applies safety limits (max observations, max tokens, timeout).
 3. **Context Input Pruner (Zero-Value Pruning)** mathematically drops observations within nominal baselines (standard deviation/thresholds) to reduce background noise and save context tokens.
 4. **Knowledge Loader** loads and caches JSON rule packs.
-5. **Candidate Filter** preselects rules via two parallel retrieval paths.  Path A (always active):
-   deterministic keyword and observation-ID overlap.  Path B (always active, requires
-   `[semantic]` extras): vector cosine-similarity search against a local ChromaDB index of rule
-   text chunks (conditions, reasoning, recommendation, keywords) embedded with
-   `paraphrase-multilingual-MiniLM-L12-v2`.  Results from both paths are unioned; neither path
-   gates the other.
+5. **Candidate Filter** retrieves candidates via two parallel paths:
+   - *Semantic path*: a query text is built from the caller's keywords and observation IDs/values,
+     embedded with `paraphrase-multilingual-MiniLM-L12-v2`, and matched against the ArangoDB
+     vector index (rules collection, `APPROX_NEAR_COSINE`).
+   - *Graph traversal path*: the same query embedding is used to search the praxis node
+     collections semantically; each matched node is traversed 1 hop OUTBOUND through the
+     `praxis_graph` named graph, collecting linked WorkingHours and substitute Worker nodes.
+     Results are shaped into rule-like dicts for uniform ranking.
+   Catch-all rules (no trigger criteria) are always included regardless of semantic score.
 6. **Context & Evidence Builder** bundles the pruned observations and retrieved candidate rules into an injected prompt payload.  Any physical constants and domain facts are already embedded in rule conditions.
 7. **Ranker** scores candidates by semantic relevance, severity, freshness, and trigger confidence to fit context windows.
 8. **Relevance Compressor** applies deduplication and "Lean Context Injection" rules: strips metadata tags from JSON returned to the LLM, thereby keeping context maximally lean.
@@ -38,25 +41,33 @@ Request path (reasoning-first):
 
 ### Knowledge storage: tables/collections and purpose
 
-**Now (JSON files):**
+**Authoring source (JSON files):**
 - `knowledge/rules/*.json`: domain rule packs.  Rule conditions embed physical constants and domain facts directly as `exact` predicates (with literal values) or `natural_language` text.
 - `knowledge/taxonomy/context_terms.json`: normalized aliases, observation types, and context terms
-- `knowledge/catalog.json`: bundle index with version, checksum, and effective dates
-- `knowledge/.semantic_index/` *(auto-created)*: ChromaDB persistent vector index for the
-  semantic retrieval path.  Built on first request and invalidated alongside the JSON cache.
+- `seeds/nodes/*.json`: graph node definitions (workers, working hours, …)
+- `seeds/edges/*.json`: graph edge definitions (arbeitet, vertritt, …)
 
-**Later (SQLite):**
-- `knowledge_items(id, rule_id, domain, description, trigger_observations_json, conditions_json, reasoning_template, action_recommendation, severity, confidence_prior, tags_json, effective_from, effective_to, version, updated_at)`
+**Runtime store (ArangoDB `reason` database):**
+- `rules` collection: rule documents with 384-dim `embedding` vectors for `APPROX_NEAR_COSINE` search
+- `rule_relations` edge collection: rule-to-rule relationship edges
 
-Purpose: store canonical reason rules, taxonomy, and immutable facts used by deterministic reasoning computations.
+**Graph store (ArangoDB `praxis` database):**
+- `workers` vertex collection: Worker nodes with embeddings
+- `working_hours` vertex collection: WorkingHours nodes with embeddings
+- `arbeitet` edge collection: Worker → WorkingHours
+- `vertritt` edge collection: Worker → Worker (substitution)
+- `praxis_graph` named graph: covers both edge definitions
+
+Purpose: store canonical reasoning rules and domain entity graphs; support both vector
+similarity search and AQL graph traversal in a single database engine.
 
 ### Capabilities storage: tables/collections and purpose
 
 **Now (JSON file):**
 - `capabilities/capabilities.json` with supported observation types, operators, and limits
 
-**Later (SQLite):**
-- `capabilities(id, name, version, preconditions_json, limits_json, owner, status, updated_at)`
+**Later (ArangoDB, if needed at scale):**
+- `capabilities` vertex collection: `(id, name, version, preconditions_json, limits_json, owner, status, updated_at)`
 
 Purpose: declare what the tool can evaluate and under which constraints.
 
@@ -107,8 +118,14 @@ To support the Host LLM evaluating the two variations of rule conditions (Exact 
 1. Validate input payload (`timestamp`, `observations`, optional `domain`, optional context attributes).
 2. Apply **Zero-Value Pruning** to strip out nominal, non-anomalous background observations to radically reduce noise and token usage.
 3. Normalize observation keys/units and map aliases through taxonomy.
-4. Build candidate rule set by matching `trigger.observations`, context attributes, domain, and active status.
-5. **Rank & Compress Relevant Knowledge (Lean Context Injection):** Score the candidate rules based on semantic alignment, severity, and context relevance to select the `top_k`. Strip out any internal rule metadata (like tags, backend IDs, schema versions) before payload generation.
+4. Build candidate rule set via semantic vector search (rules collection in ArangoDB) AND, when a
+   graph domain is active, a parallel AQL graph traversal (praxis DB: `workers`, `working_hours`,
+   `arbeitet`, `vertritt`).  Graph node results are shaped as rule-like dicts and merged with
+   semantic hits before ranking.
+5. **Rank & Compress Relevant Knowledge (Lean Context Injection):** Score all candidates (semantic
+   rule hits + graph node candidates + catch-all rules) by semantic alignment, severity, and context
+   relevance to select the `top_k`. Strip out any internal metadata (tags, backend IDs, schema
+   versions, `_source`, `_sem_score`) before payload generation.
 6. Compose a highly lean, token-optimized JSON payload combining:
    - Only the pruned, active anomalous observations (nominal background noise stripped).
    - The lean Domain Rules (including `exact` and `natural_language` conditions with any embedded facts, minus developer metadata).
@@ -177,7 +194,7 @@ The LLM now holds the prompt containing the observation ("I have seen a red van"
 Decision: **local-first** for MVP.
 
 Decision criteria:
-- **Latency:** local deterministic evaluation is stable and fast for structured rules.
+- **Latency:** local semantic retrieval is stable and fast; embedding overhead is ~20–50 ms warm.
 - **Governance/security:** observation streams may contain sensitive domain context; local keeps boundaries strict.
 External integration hook (later):
 - Persist each run so separate planning/orchestrator agents can track which recommendations correlated with positive outcomes
@@ -194,12 +211,12 @@ When to add cloud/hybrid later:
 - API/MCP layer: `FastAPI`, `pydantic`, `uvicorn`
 - Rule evaluation: custom evaluator over structured predicates (pure Python)
 - Caching/loading: `orjson`, `watchfiles`, in-memory LRU cache
-- Storage migration: `sqlite3` (MVP), then `SQLAlchemy` + `Alembic`
+- Storage: `python-arango` (ArangoDB) — rules and graph nodes with 384-dim embeddings
 - Observability: `structlog`, OpenTelemetry-compatible logging
 - Testing: `pytest`, `hypothesis` for condition edge cases
 - Optional local model: lightweight Python inference wrapper behind `model_gateway`
 
-Design principle: deterministic reasoning remains authoritative; model output is optional refinement and explicitly non-authoritative.
+Design principle: the tool retrieves; the Host LLM reasons.  Model output is optional refinement and explicitly non-authoritative.
 
 ---
 
@@ -214,7 +231,7 @@ Design principle: deterministic reasoning remains authoritative; model output is
 4. **Schema drift before DB migration**
    - Mitigation: version every JSON bundle; run migration contract tests.
 5. **Over-reliance on optional model refiner**
-   - Mitigation: always return deterministic canonical reason with explicit `rule_id`.
+   - Mitigation: always return rule-backed output with explicit `rule_id`.
 
 ---
 
@@ -225,7 +242,7 @@ Design principle: deterministic reasoning remains authoritative; model output is
 - Finalize observation-based JSON rule schema v1 and validation tests.
 - KPI baseline definition.
 
-### Phase 1: Deterministic reasoning MVP (3-5 days)
+### Phase 1: Semantic retrieval MVP (3-5 days)
 - Implement loader, filter, evaluator, ranking, and top-3 compressor.
 - Return compact responses with confidence and evidence.
 - Add run logging.
@@ -235,10 +252,11 @@ Design principle: deterministic reasoning remains authoritative; model output is
 - Add replay tests from representative multi-domain snapshots.
 - Optional local explanation refiner behind feature flag.
 
-### Phase 3: Persistence migration (3-5 days)
-- Introduce SQLite schema mirroring JSON entities.
-- Add importer from JSON bundles to DB.
-- Keep JSON as authoring source until DB workflow stabilizes.
+### Phase 3: ArangoDB persistence (completed)
+- ArangoDB is live as both rules DB (`reason`) and domain graph DB (`praxis`).
+- `scripts/seed_arango.py` upserts rules with embeddings.
+- `scripts/seed_praxis_graph.py` upserts Worker, WorkingHours, arbeitet, and vertritt data.
+- JSON files remain the authoring source.
 
 ### Phase 4: Planning loop enablement (next)
 - Add strategy scoring from outcome feedback.
@@ -258,4 +276,4 @@ Design principle: deterministic reasoning remains authoritative; model output is
 
 For kickoff: **no separate autonomous agent needed**.
 
-Use one observation-driven MCP reasoning tool as deterministic core. Optionally add a small local model only for phrasing improvements after deterministic ranking. This keeps precision high, behavior explainable, and migration to planning loops straightforward.
+Use one observation-driven MCP reasoning tool as semantic retrieval core. Optionally add a small local model only for phrasing improvements after rule ranking. This keeps precision high, behavior explainable, and migration to planning loops straightforward.

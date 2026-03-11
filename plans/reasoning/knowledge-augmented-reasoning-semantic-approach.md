@@ -7,15 +7,15 @@ This document extends and aligns with:
 - `plans/knowledge-augmented-reasoning-mcp-contract.md`
 - `requirements/REQ-010-semantic-normalization-and-synonyms.md` to `requirements/REQ-015-multilingual-terminology-coverage.md`
 
-Goal: make natural-language context robustly match stored reasoning knowledge even when wording differs (e.g., "vehicle" vs "car") while preserving deterministic, auditable final reasoning.
+Goal: make natural-language context robustly match stored reasoning knowledge even when wording differs (e.g., "vehicle" vs "car") while preserving auditable, evidence-based final reasoning.
 
 ---
 
 ## 1) Recommended architecture (1-2 paragraphs)
 
-Primary recommendation: add a **Semantic Interpretation Layer** before deterministic rule scoring. This layer maps free-text context and observation labels to canonical concepts (synonyms, paraphrases, multilingual terms), produces explainable semantic candidates, and passes only high-quality candidates into the deterministic reasoner.
+Primary recommendation: the **Semantic Interpretation Layer** is the sole retrieval mechanism. It maps free-text context and observation labels to canonical concepts (synonyms, paraphrases, multilingual terms) via embedding-based search, producing explainable semantic candidates that are ranked and compressed by the compressor.
 
-The final reason output remains deterministic and evidence-based; language-model capabilities are used to improve semantic recall, not to override rule truth. This preserves trust and auditability while unlocking broad cross-domain applicability.
+The final rule output is evidence-based: every returned rule carries an explicit `rule_id` and relevance score. Language-model capabilities improve semantic recall; they do not override rule content. This preserves trust and auditability while unlocking broad cross-domain applicability.
 
 ---
 
@@ -29,8 +29,8 @@ Semantic-aware reasoning path:
 4. **Paraphrase Matcher** computes semantic similarity between context snippets and rule descriptions/templates.
 5. **Ambiguity Resolver** detects multi-meaning matches and applies policy (clarify, constrain, or continue).
 6. **Candidate Builder** emits candidate rule ids with semantic evidence and confidence.
-7. **Deterministic Evaluator** applies rule conditions on normalized observations/context.
-8. **Rank Fusion** combines semantic relevance and deterministic confidence into final ranking.
+7. **Relevance Ranker** scores candidates by semantic similarity, severity, and confidence.
+8. **Rank Fusion** combines semantic relevance and rule confidence into final ranking.
 9. **Explainability Composer** returns reasons, evidence, and semantic match trace.
 10. **Feedback Logger** stores mappings, outcomes, and ambiguity events for continuous tuning.
 
@@ -46,10 +46,10 @@ Semantic-aware reasoning path:
 - `knowledge/semantic/synonym_edges.json`: concept-equivalence graph
 - `knowledge/semantic/paraphrase_examples.json`: paraphrase pairs for evaluation
 
-**Later (SQLite):**
-- `knowledge_items(id, rule_id, domain, description, conditions_json, reasoning_template, tags_json, version, updated_at)`
-- `concepts(id, canonical_term, domain, metadata_json, updated_at)`
-- `concept_aliases(id, concept_id, alias, language, weight, source, updated_at)`
+**Runtime store (ArangoDB):**
+- `rules` collection in the `reason` database stores rule documents with 384-dim embeddings.
+- A separate synonym/concept JSON file (`knowledge/taxonomy/context_terms.json`) provides alias
+  lookup; this may be migrated to ArangoDB as a `concepts` vertex collection if needed at scale.
 
 Purpose: support robust context-to-knowledge matching across variants and languages.
 
@@ -58,8 +58,9 @@ Purpose: support robust context-to-knowledge matching across variants and langua
 **Now (JSON file):**
 - `capabilities/capabilities.json` with supported languages, semantic methods, and ambiguity behaviors
 
-**Later (SQLite):**
-- `capabilities(id, name, version, preconditions_json, limits_json, owner, status, updated_at)`
+**Runtime (JSON + ArangoDB):**
+- `capabilities.json` defines supported languages, semantic methods, and ambiguity behaviors.
+- If capability metadata grows, it can be migrated to an ArangoDB `capabilities` collection.
 
 Purpose: make semantic feature availability explicit and testable.
 
@@ -86,7 +87,7 @@ Purpose: make semantic feature availability explicit and testable.
 
 ## 4) Reasoning flow (step-by-step)
 
-Semantic matching + deterministic reasoning flow:
+Semantic matching + rule-backed reasoning flow:
 
 1. Validate request payload and normalize text/observation forms.
 2. Extract key entities/terms from context using rule-safe parser + optional LM parser.
@@ -98,14 +99,14 @@ Semantic matching + deterministic reasoning flow:
 5. Detect ambiguity:
    - if semantic confidence < threshold or multiple concepts overlap,
    - apply policy: request clarification, constrain output, or continue with warnings.
-6. Evaluate deterministic rule conditions for candidate set.
+6. Retrieve candidate rules via the semantic vector index and catch-all fallback.
 7. Fuse scores:
    - semantic relevance,
-   - deterministic confidence,
+   - rule confidence (confidence_prior),
    - severity/actionability.
 8. Build response:
-   - top-k reasons,
-   - deterministic evidence,
+   - top-k rules,
+   - rule-backed evidence,
    - semantic mapping trace (`input_term -> canonical_term`).
 9. Log telemetry and feedback for strategy tuning.
 
@@ -134,20 +135,21 @@ Recommended policy:
 
 - API/orchestration: `FastAPI`, `pydantic`, `uvicorn`
 - Text normalization: `regex`, `rapidfuzz`, `unicodedata`
-- Embeddings/retrieval: `sentence-transformers`, `numpy`, `faiss-cpu` or `pgvector`
-- Rule reasoning: custom deterministic evaluator (pure Python)
-- Persistence/migration: `sqlite3` -> `SQLAlchemy` + `Alembic`
+- Embeddings/retrieval: `sentence-transformers`, `numpy`
+- Vector + graph store: `python-arango` (ArangoDB); `APPROX_NEAR_COSINE` for vector search,
+  AQL FOR/PRUNE for graph traversal; Python-side cosine fallback for older clusters
+- Rule reasoning / ranking: custom relevance ranker (pure Python)
 - Observability: `structlog`, OpenTelemetry-compatible traces
 - Evaluation harness: `pytest`, `pandas`, `scikit-learn` metrics for semantic quality
 
-Principle: language models support semantic matching and disambiguation, while final reason selection remains deterministic.
+Principle: language models support semantic matching and disambiguation; final rule selection is always rule-backed and evidence-traceable.
 
 ---
 
 ## 7) Risks and mitigations
 
 1. **False semantic matches (high recall, low precision)**
-   - Mitigation: confidence thresholds + deterministic gate before final output.
+   - Mitigation: confidence thresholds before final output selection.
 2. **Domain drift in synonym sets**
    - Mitigation: versioned concept store + periodic review + feedback-driven updates.
 3. **Opaque semantic behavior**
@@ -166,12 +168,12 @@ Principle: language models support semantic matching and disambiguation, while f
 - Define semantic quality metrics and baseline test set.
 
 ### Phase 1: Semantic normalization MVP (3-5 days)
-- Implement concept/alias store and deterministic normalization pipeline.
+- Implement concept/alias store and semantic normalization pipeline.
 - Add synonym mapping and explainable term trace output.
 
 ### Phase 2: Paraphrase + semantic retrieval (4-6 days)
 - Add embedding retrieval for free-text context to rule candidates.
-- Implement ranking fusion with deterministic scores.
+- Implement ranking fusion with semantic relevance scores.
 
 ### Phase 3: Ambiguity and multilingual hardening (4-6 days)
 - Add ambiguity detection/resolution policies.

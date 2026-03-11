@@ -11,7 +11,7 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
 
 - **Tool name:** `reasoning_analyze_context` (hosted on `reason-mcp` — the general-purpose MCP server)
 - **Goal:** Retrieve domain-specific rules and facts relevant to the given observations, so the calling Host LLM can perform the actual reasoning.
-- **Authority model:** The tool retrieves deterministically; the Host LLM reasons.
+- **Authority model:** The tool retrieves via semantic vector search (rules collection in ArangoDB) and, for graph-backed domains, via AQL graph traversal (praxis DB); catch-all rules are always included.  The Host LLM performs the actual reasoning.
 - **Default response policy:** top-k ranked candidate rules + strictly required domain facts.
 
 ---
@@ -129,7 +129,7 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
           "minimum": 0,
           "maximum": 1,
           "default": 0.45,
-          "description": "Minimum cosine similarity for a semantic hit to be accepted as a candidate. The semantic path always runs in parallel; this threshold controls result quality."
+          "description": "Minimum cosine similarity for a semantic hit to be accepted as a candidate. This threshold controls result quality."
         }
       }
     },
@@ -140,7 +140,7 @@ The contract is domain-agnostic and optimized for precise, compact knowledge inj
     },
     "keywords": {
       "type": "array",
-      "description": "Lowercase keywords extracted from a natural-language query (e.g. ['car', 'weight']). Used for semantic keyword matching against rule trigger.keywords when no structured observation IDs are available. May be combined with observations.",
+      "description": "Lowercase keywords extracted from a natural-language query (e.g. ['car', 'weight']). Used to build the semantic query text alongside observation IDs and values. May be combined with observations.",
       "maxItems": 50,
       "items": {
         "type": "string",
@@ -355,7 +355,7 @@ Standard error codes:
 - `VALIDATION_ERROR`: request schema violation
 - `UNKNOWN_OBSERVATION`: observation id not recognized by taxonomy
 - `KNOWLEDGE_UNAVAILABLE`: ruleset not loaded or checksum invalid
-- `EVALUATION_ERROR`: deterministic evaluator failed on a rule
+- `EVALUATION_ERROR`: rule evaluation or ranking failed unexpectedly
 - `TIMEOUT`: processing exceeded configured timeout
 - `INTERNAL_ERROR`: unclassified failure
 
@@ -456,4 +456,4 @@ src/
     ranking_strategy.json
 ```
 
-This layout preserves clean boundaries between API contract, deterministic reasoning core, and knowledge/policy artifacts.
+This layout preserves clean boundaries between API contract, semantic retrieval core, and knowledge/policy artifacts.

@@ -103,108 +103,234 @@ RULES = [
 ]
 
 
-def test_filter_matches_on_observation():
-    result = filter_candidates(RULES, {"OBS_VEHICLE_SEEN"}, domain="fleet_tracking")
-    assert len(result) == 1
-    assert result[0]["rule_id"] == "R-001"
-
-
-def test_filter_excludes_wrong_context_state():
-    result = filter_candidates(
-        RULES, {"OBS_PRESSURE"}, domain="industrial", context_state="IDLE"
-    )
-    assert result == []
-
-
-def test_filter_matches_correct_context_state():
-    result = filter_candidates(
-        RULES, {"OBS_PRESSURE"}, domain="industrial", context_state="PRODUCTION"
-    )
-    assert len(result) == 1
-    assert result[0]["rule_id"] == "R-002"
-
-
-def test_filter_keyword_only_rule_matched_by_keyword():
-    """R-003 has no observations trigger — should be found via keyword alone."""
-    result = filter_candidates(
-        RULES, set(), domain="fleet_tracking", keywords={"speed", "highway"}
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-003" in ids
-
-
-def test_filter_keyword_hits_obs_rule_without_observation():
-    """R-001 has both obs and keywords; keyword match alone should surface it."""
-    result = filter_candidates(
-        RULES, set(), domain="fleet_tracking", keywords={"convertible"}
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-001" in ids
-
-
-def test_filter_no_match_wrong_keywords():
-    result = filter_candidates(
-        RULES, set(), domain="fleet_tracking", keywords={"banana", "cloud"}
-    )
-    assert result == []
-
-
-def test_filter_keyword_excluded_by_domain():
-    """R-002 is industrial; supplying correct keyword but wrong domain should exclude it."""
-    result = filter_candidates(
-        RULES, set(), domain="fleet_tracking", keywords={"pressure"}
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-002" not in ids
-
-
-def test_filter_practice_rule_keyword_match():
-    """Simulate the user query about Frau Meier and ensure the rule is returned.
-
-    This mirrors the `praxis.json` rule in the knowledge directory.  The loader
-    uses a simple file cache; when you add a rule at runtime you must restart or
-    call `invalidate_cache()` so the new file is visible.
-    """
-    practice = {
-        "rule_id": "R-PRACTICE",
-        "domain": "Praxisbesetzung",
-        "active": True,
-        "trigger": {"keywords": ["Meier", "Praxisbesetzung"]},
-        "conditions": {"natural_language": "Frau Meier arbeitet Dienstag"},
-        "reasoning": {"confidence_prior": 0.6},
-        "recommendation": {"action": "Versuchen Sie Herrn Müller", "urgency": "medium"},
-        "scoring": {"severity": 2},
-    }
-    # keyword from user message gets normalized to 'meier'
-    result = filter_candidates(
-        RULES + [practice], set(), keywords={"meier"}
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-PRACTICE" in ids
-
-
-def test_filter_keyword_normalization_removes_diacritics_and_punctuation():
-    # rule R-001 has keywords car, vehicle, convertible
-    # add a custom rule with a fancy name to verify normalization
-    special = {
-        "rule_id": "R-NAME",
+def test_filter_catch_all_always_returned():
+    """A rule with no trigger criteria is always included regardless of query."""
+    catch_all = {
+        "rule_id": "R-CATCHALL",
         "domain": "fleet_tracking",
         "active": True,
-        "trigger": {"keywords": ["Fr. Schröder"]},
-        "conditions": {"natural_language": "Name match."},
+        "trigger": {},  # no criteria → catch-all
+        "conditions": {"natural_language": "Default guidance."},
         "reasoning": {"confidence_prior": 0.5},
         "scoring": {"severity": 1},
     }
+    result = filter_candidates([catch_all], domain="fleet_tracking")
+    ids = [r["rule_id"] for r in result]
+    assert "R-CATCHALL" in ids
+
+
+def test_filter_catch_all_returned_without_semantic_query():
+    """Catch-all requires no semantic_query to appear in results."""
+    catch_all = {
+        "rule_id": "R-CATCHALL",
+        "domain": None,
+        "active": True,
+        "trigger": {},
+        "conditions": {"natural_language": "No criteria."},
+        "reasoning": {"confidence_prior": 0.5},
+        "scoring": {"severity": 1},
+    }
+    result = filter_candidates([catch_all])
+    assert len(result) == 1
+    assert result[0]["rule_id"] == "R-CATCHALL"
+    assert result[0]["_sem_score"] == 0.0
+
+
+def test_filter_domain_excludes_non_matching_domain():
+    """Rules from a different domain are excluded even if they are catch-all."""
+    other_domain = {
+        "rule_id": "R-OTHER",
+        "domain": "industrial",
+        "active": True,
+        "trigger": {},
+        "conditions": {"natural_language": "Industrial default."},
+        "reasoning": {"confidence_prior": 0.5},
+        "scoring": {"severity": 1},
+    }
+    result = filter_candidates([other_domain], domain="fleet_tracking")
+    assert result == []
+
+
+def test_filter_no_domain_includes_all_catch_all():
+    """When no domain is specified, catch-all rules of any domain are included."""
+    r1 = {**RULES[0], "rule_id": "R-CA1", "trigger": {}}
+    r2 = {**RULES[1], "rule_id": "R-CA2", "trigger": {}}
+    result = filter_candidates([r1, r2], domain=None)
+    ids = [r["rule_id"] for r in result]
+    assert "R-CA1" in ids
+    assert "R-CA2" in ids
+
+
+def test_filter_semantic_query_adds_candidates(monkeypatch):
+    """Rules found only by semantic search are included in the candidate set."""
+    sem_rule = {
+        "rule_id": "R-SEM-001",
+        "domain": "fleet_tracking",
+        "active": True,
+        "trigger": {"keywords": ["unreachable"]},  # won't be triggered by filter
+        "conditions": {"natural_language": "Condition for R-SEM-001."},
+        "reasoning": {"confidence_prior": 0.8},
+        "scoring": {"severity": 3},
+    }
+
+    def fake_search(query, top_k, min_score, domain):
+        return [("R-SEM-001", 0.82)]
+
+    monkeypatch.setattr(
+        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
+    )
     result = filter_candidates(
-        RULES + [special], set(), domain="fleet_tracking", keywords={"schroder"}
+        [sem_rule],
+        domain="fleet_tracking",
+        semantic_query="some query text",
+        semantic_min_score=0.75,
     )
     ids = [r["rule_id"] for r in result]
-    assert "R-NAME" in ids
+    assert "R-SEM-001" in ids
+    match = next(r for r in result if r["rule_id"] == "R-SEM-001")
+    assert match["_sem_score"] == 0.82
 
 
-# ---------------------------------------------------------------------------
-# Rule text renderer
-# ---------------------------------------------------------------------------
+def test_filter_semantic_query_off_by_default():
+    """Without a semantic_query, only catch-all rules are returned."""
+    catch_all = {
+        "rule_id": "R-SEM-002",
+        "domain": "fleet_tracking",
+        "active": True,
+        "trigger": {},
+        "conditions": {"natural_language": "Default rule."},
+        "reasoning": {"confidence_prior": 0.8},
+        "scoring": {"severity": 3},
+    }
+    result = filter_candidates(
+        [catch_all],
+        domain="fleet_tracking",
+    )
+    ids = [r["rule_id"] for r in result]
+    assert "R-SEM-002" in ids
+
+
+def test_filter_semantic_and_catch_all_union(monkeypatch):
+    """Semantic hit and catch-all rule are both present in the result set."""
+    catch_all = {
+        "rule_id": "R-CATCHALL",
+        "domain": "fleet_tracking",
+        "active": True,
+        "trigger": {},
+        "conditions": {"natural_language": "Default."},
+        "reasoning": {"confidence_prior": 0.5},
+        "scoring": {"severity": 1},
+    }
+    targeted = {
+        "rule_id": "R-TARGET",
+        "domain": "fleet_tracking",
+        "active": True,
+        "trigger": {"keywords": ["something"]},
+        "conditions": {"natural_language": "Targeted rule."},
+        "reasoning": {"confidence_prior": 0.8},
+        "scoring": {"severity": 3},
+    }
+
+    def fake_search(query, top_k, min_score, domain):
+        return [("R-TARGET", 0.91)]
+
+    monkeypatch.setattr(
+        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
+    )
+    result = filter_candidates(
+        [catch_all, targeted],
+        domain="fleet_tracking",
+        semantic_query="targeted query",
+        semantic_min_score=0.75,
+    )
+    ids = [r["rule_id"] for r in result]
+    assert "R-TARGET" in ids
+    assert "R-CATCHALL" in ids
+    t = next(r for r in result if r["rule_id"] == "R-TARGET")
+    assert t["_sem_score"] == 0.91
+    c = next(r for r in result if r["rule_id"] == "R-CATCHALL")
+    assert c["_sem_score"] == 0.0
+
+
+def test_filter_semantic_finds_rule_with_unmatched_keyword_trigger(monkeypatch):
+    """Core use case: rule has keyword trigger that does NOT match query text.
+    Semantic search finds it anyway; rule must appear with sem_score > 0."""
+    mueller_rule = {
+        "rule_id": "R-MUELLER",
+        "domain": "Praxisbesetzung",
+        "active": True,
+        "trigger": {"keywords": ["Urlaub", "Krankheit"]},
+        "conditions": {"natural_language": "Hr. Müller arbeitet Do und Fr 08-10 Uhr"},
+        "reasoning": {"confidence_prior": 0.95},
+        "scoring": {"specificity": 0.9},
+    }
+
+    def fake_search(query, top_k, min_score, domain):
+        return [("R-MUELLER", 0.78)]
+
+    monkeypatch.setattr(
+        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
+    )
+    result = filter_candidates(
+        [mueller_rule],
+        domain="Praxisbesetzung",
+        semantic_query="Hr. Müller montag nicht da",
+        semantic_min_score=0.70,
+    )
+    ids = [r["rule_id"] for r in result]
+    assert "R-MUELLER" in ids
+    match = next(r for r in result if r["rule_id"] == "R-MUELLER")
+    assert match["_sem_score"] == 0.78
+
+
+def test_filter_catch_all_survives_semantic_failure(monkeypatch):
+    """Catch-all rule is still returned even when the semantic path raises."""
+    catch_all = {
+        "rule_id": "R-CATCHALL",
+        "domain": "fleet_tracking",
+        "active": True,
+        "trigger": {},
+        "conditions": {"natural_language": "Default guidance."},
+        "reasoning": {"confidence_prior": 0.5},
+        "scoring": {"severity": 1},
+    }
+
+    def fake_search_error(query, top_k, min_score, domain):
+        raise RuntimeError("model not available")
+
+    monkeypatch.setattr(
+        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search_error
+    )
+    result = filter_candidates(
+        [catch_all],
+        domain="fleet_tracking",
+        semantic_query="some query",
+        semantic_min_score=0.75,
+    )
+    ids = [r["rule_id"] for r in result]
+    assert "R-CATCHALL" in ids
+
+
+def test_filter_semantic_domain_not_passed_when_none(monkeypatch):
+    """When no domain is specified, semantic search is called with domain=None."""
+    calls = []
+
+    def fake_search(query, top_k, min_score, domain):
+        calls.append(domain)
+        return []
+
+    monkeypatch.setattr(
+        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
+    )
+    filter_candidates(
+        RULES,
+        domain=None,
+        semantic_query="any query",
+    )
+    assert calls == [None]
+
+
+
 
 
 def test_render_rules_as_text_format():
@@ -255,181 +381,11 @@ def test_render_rules_as_text_multiple_rules():
 
 
 def test_compress_returns_top_k():
-    lean = compress(RULES, {"OBS_VEHICLE_SEEN", "OBS_PRESSURE"}, top_k=1, min_relevance=0.0)
+    lean = compress(RULES, top_k=1, min_relevance=0.0)
     assert len(lean) == 1
 
 
 def test_compress_strips_internal_fields():
     rule = {**RULES[0], "author": "alice", "updated_at": "2026-01-01"}
-    lean = compress([rule], {"OBS_VEHICLE_SEEN"}, top_k=5, min_relevance=0.0)
+    lean = compress([rule], top_k=5, min_relevance=0.0)
     assert all("author" not in r and "updated_at" not in r for r in lean)
-
-
-# ---------------------------------------------------------------------------
-# Semantic filter (Stage 2) — embedder is mocked to keep tests model-free
-# ---------------------------------------------------------------------------
-
-
-def _sem_rule(rule_id: str, domain: str = "fleet_tracking") -> dict:
-    return {
-        "rule_id": rule_id,
-        "domain": domain,
-        "active": True,
-        "trigger": {"keywords": []},  # no keyword trigger — only semantic
-        "conditions": {"natural_language": f"Condition for {rule_id}."},
-        "reasoning": {"confidence_prior": 0.8},
-        "scoring": {"severity": 3},
-    }
-
-
-def test_filter_semantic_query_adds_stage2_candidates(monkeypatch):
-    """Rules found only by semantic search are included in the candidate set."""
-    sem_rule = _sem_rule("R-SEM-001")
-
-    def fake_search(query, top_k, min_score, domain):
-        return [("R-SEM-001", 0.82)]
-
-    monkeypatch.setattr(
-        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
-    )
-    result = filter_candidates(
-        RULES + [sem_rule],
-        set(),
-        domain="fleet_tracking",
-        semantic_query="some query text",
-        semantic_min_score=0.75,
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-SEM-001" in ids
-    # Score is attached for downstream ranking
-    # _sem_rule has no keyword/obs criteria → catch-all → det_score=0.5
-    match = next(r for r in result if r["rule_id"] == "R-SEM-001")
-    assert match["_sem_score"] == 0.82
-    assert match["_det_score"] == 0.5  # catch-all neutral score from det path
-
-
-def test_filter_semantic_query_off_by_default():
-    """Without semantic_query, a rule with no trigger criteria is a catch-all."""
-    sem_rule = _sem_rule("R-SEM-002")
-    result = filter_candidates(
-        [sem_rule],
-        set(),
-        domain="fleet_tracking",
-    )
-    # No criteria on rule → catch-all; should still pass without semantic
-    ids = [r["rule_id"] for r in result]
-    assert "R-SEM-002" in ids
-
-
-def test_filter_parallel_union_includes_both_paths(monkeypatch):
-    """Catch-all (det path) and semantic-only hit are both in the union.
-
-    In the parallel design neither path gates the other.  A catch-all rule
-    (no trigger criteria) is always included by the deterministic path;
-    a rule found only by semantic is included by the semantic path.  Both
-    appear in the merged candidate set.  Ranking is left to the compressor.
-    """
-    catch_all = _sem_rule("R-CATCHALL")  # no trigger criteria → always det hit
-    targeted = _sem_rule("R-TARGET")     # only returned by semantic path
-
-    def fake_search(query, top_k, min_score, domain):
-        return [("R-TARGET", 0.91)]
-
-    monkeypatch.setattr(
-        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
-    )
-    result = filter_candidates(
-        [catch_all, targeted],
-        set(),
-        domain="fleet_tracking",
-        semantic_query="targeted query",
-        semantic_min_score=0.75,
-    )
-    ids = [r["rule_id"] for r in result]
-    # Both paths contribute — neither suppresses the other
-    assert "R-TARGET" in ids
-    assert "R-CATCHALL" in ids
-    # Scores are attached correctly
-    # Both rules are catch-all (no criteria) → det_score = 0.5 for both
-    t = next(r for r in result if r["rule_id"] == "R-TARGET")
-    assert t["_sem_score"] == 0.91
-    assert t["_det_score"] == 0.5  # catch-all neutral score from det path
-    c = next(r for r in result if r["rule_id"] == "R-CATCHALL")
-    assert c["_det_score"] == 0.5  # neutral catch-all score
-    assert c["_sem_score"] == 0.0
-
-
-def test_filter_semantic_finds_rule_with_unmatched_keyword_trigger(monkeypatch):
-    """Core use case: rule has keyword trigger ["Urlaub", "Krankheit"] but the
-    query is about "Hr. Müller montag nicht da".  Det path misses it; semantic
-    finds it.  Rule must appear in the union with det_score=0.0, sem_score>0."""
-    mueller_rule = {
-        "rule_id": "R-MUELLER",
-        "domain": "Praxisbesetzung",
-        "active": True,
-        "trigger": {"keywords": ["Urlaub", "Krankheit"]},  # does NOT match query
-        "conditions": {"natural_language": "Hr. Müller arbeitet Do und Fr 08-10 Uhr"},
-        "reasoning": {"confidence_prior": 0.95},
-        "scoring": {"specificity": 0.9},
-    }
-
-    def fake_search(query, top_k, min_score, domain):
-        # Semantic finds R-MUELLER even though det keywords don't match
-        return [("R-MUELLER", 0.78)]
-
-    monkeypatch.setattr(
-        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
-    )
-    result = filter_candidates(
-        [mueller_rule],
-        set(),  # no observations
-        domain="Praxisbesetzung",
-        keywords={"montag", "muller", "nicht da"},  # keyword mismatch with trigger
-        semantic_query="Hr. Müller montag nicht da",
-        semantic_min_score=0.70,
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-MUELLER" in ids
-    match = next(r for r in result if r["rule_id"] == "R-MUELLER")
-    assert match["_det_score"] == 0.0   # det path could not match trigger keywords
-    assert match["_sem_score"] == 0.78  # semantic path found it
-
-
-def test_filter_det_path_still_works_when_semantic_fails(monkeypatch):
-    """If the embedder raises, the deterministic path result is still returned."""
-    def fake_search_error(query, top_k, min_score, domain):
-        raise RuntimeError("model not available")
-
-    monkeypatch.setattr(
-        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search_error
-    )
-    result = filter_candidates(
-        RULES,
-        {"OBS_VEHICLE_SEEN"},
-        domain="fleet_tracking",
-        semantic_query="some query",
-        semantic_min_score=0.75,
-    )
-    ids = [r["rule_id"] for r in result]
-    assert "R-001" in ids  # deterministic obs_match still works
-
-
-def test_filter_semantic_domain_not_passed_when_none(monkeypatch):
-    """When no domain is specified, semantic search is called with domain=None."""
-    calls = []
-
-    def fake_search(query, top_k, min_score, domain):
-        calls.append(domain)
-        return []
-
-    monkeypatch.setattr(
-        "reason_mcp.tools.reasoning.embedder.search_rules", fake_search
-    )
-    filter_candidates(
-        RULES,
-        set(),
-        domain=None,
-        semantic_query="any query",
-    )
-    assert calls == [None]
-

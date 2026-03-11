@@ -20,37 +20,21 @@ logger = structlog.get_logger(__name__)
 
 # Fields that must NOT be forwarded to the LLM (internal metadata)
 _STRIP_FIELDS = {"author", "updated_at", "created_at", "source", "version", "active",
-                 "_det_score", "_sem_score"}
+                 "_sem_score"}
 
 
-def _relevance_score(rule: dict[str, Any], observation_ids: set[str]) -> float:
-    """Combined relevance heuristic: best of deterministic and semantic signals.
+def _relevance_score(rule: dict[str, Any]) -> float:
+    """Relevance heuristic: semantic similarity blended with domain specificity.
 
-    Uses pre-computed ``_det_score`` and ``_sem_score`` attached by the filter.
-    The higher of the two becomes the *match signal* (0..1), which is blended
-    with the rule's domain-specificity score:
+    Uses pre-computed ``_sem_score`` attached by the filter.  Catch-all rules
+    (no semantic hit, sem_score=0.0) receive a neutral 0.5 match signal so they
+    can still pass the relevance threshold.
 
         relevance = match_signal × 0.6 + specificity × 0.4
-
-    Legacy path (no attached scores): falls back to the observation-overlap
-    heuristic so rules can be scored without running through filter.py.
     """
-    det_score: float | None = rule.get("_det_score")
     sem_score: float = rule.get("_sem_score", 0.0)
-
-    if det_score is not None:
-        match_signal = max(det_score, sem_score)
-    else:
-        # Legacy / standalone path: compute from observation overlap
-        trigger_obs: list[str] = rule.get("trigger", {}).get("observations", [])
-        if trigger_obs and observation_ids:
-            overlap = len(observation_ids.intersection(trigger_obs))
-            match_signal = overlap / len(trigger_obs)
-        elif not trigger_obs:
-            match_signal = 0.5
-        else:
-            match_signal = 0.0
-
+    # Catch-all rules (no semantic signal) get a neutral match signal
+    match_signal = sem_score if sem_score > 0.0 else 0.5
     confidence = rule.get("reasoning", {}).get("confidence_prior", 0.5)
     specificity = rule.get("scoring", {}).get("specificity", confidence)
     return round(match_signal * 0.6 + specificity * 0.4, 4)
@@ -63,7 +47,6 @@ def _strip_metadata(rule: dict[str, Any]) -> dict[str, Any]:
 
 def compress(
     candidates: list[dict[str, Any]],
-    observation_ids: set[str],
     top_k: int,
     min_relevance: float,
 ) -> list[dict[str, Any]]:
@@ -76,7 +59,7 @@ def compress(
     """
     # Score and sort
     scored = [
-        (rule, _relevance_score(rule, observation_ids))
+        (rule, _relevance_score(rule))
         for rule in candidates
     ]
     scored.sort(key=lambda x: x[1], reverse=True)

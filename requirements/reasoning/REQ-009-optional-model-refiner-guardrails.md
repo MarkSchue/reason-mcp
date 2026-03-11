@@ -3,10 +3,10 @@
 ## User Story
 As a compliance owner,
 I want any optional language-model refinement to be clearly bounded,
-so that generated text cannot override deterministic reasoning facts.
+so that generated text cannot override rule-backed retrieval results.
 
 ## Acceptance Criteria
-- Deterministic output remains the authoritative result.
+- Rule-backed output remains the authoritative result.
 - Any model-refined text is marked as non-authoritative.
 - Model refinement can be disabled via configuration.
 - Returned payload always includes canonical rule references and evidence independent of model output.

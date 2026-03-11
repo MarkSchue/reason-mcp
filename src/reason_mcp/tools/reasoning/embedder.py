@@ -1,16 +1,16 @@
-"""Semantic rule retrieval via ArangoDB vector search.
+"""Semantic rule and graph-node retrieval via ArangoDB vector search.
 
-This module implements the semantic (vector) retrieval path of the parallel
-dual-path rule retrieval pipeline:
+Provides embedding and vector-search helpers used by two retrieval paths:
 
-  Path A (filter.py)  – deterministic keyword/observation overlap
-  Path B (this file)  – vector-similarity search via ArangoDB APPROX_NEAR_COSINE
+  Rules collection  (filter._sem_candidates)
+      ``search_rules()`` — embed query, search the rules collection.
 
-Both paths run in parallel for every request and their results are unioned.
-This module is always active when the ``[semantic]`` extras are installed; it
-degrades gracefully when they are not (the deterministic path still works).
+  Praxis graph nodes  (filter._graph_candidates)
+      ``embed_text()`` is called directly, then
+      ``arango_client.vector_search_nodes()`` handles the node search.
 
-    pip install "reason-mcp[semantic]"
+Both paths use the same embedding model so queries are comparable across
+collections.
 
 Embedding model
 ---------------
@@ -19,10 +19,9 @@ Embedding model
 
 Vector backend
 --------------
-ArangoDB (≥3.12) with a ``vector`` index on the ``embedding`` field of the
-``rules`` collection.  Embeddings are stored as rule document properties during
-seeding (see ``scripts/seed_arango.py``).  Falls back to Python-side exact
-cosine similarity when the native ``APPROX_NEAR_COSINE`` function is unavailable.
+ArangoDB (≥3.12) with a ``vector`` index on the ``embedding`` field.
+Falls back to Python-side exact cosine similarity when the native
+``APPROX_NEAR_COSINE`` function is unavailable.
 
 Rule text construction for embedding
 -------------------------------------

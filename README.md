@@ -85,7 +85,7 @@ src/reason_mcp/          ← server + tool implementations
     loader.py            ← in-process LRU cache over ArangoDB
   tools/reasoning/
     embedder.py          ← SentenceTransformer embeddings + search_rules()
-    filter.py            ← dual-path retrieval (deterministic + semantic)
+    filter.py            ← semantic retrieval + catch-all rule inclusion
 seeds/                   ← initial domain knowledge as Python data
   __init__.py            ← aggregates RULES + EDGES from all domain modules
   car_facts.py           ← CarFacts domain (CAR-1, CAR-2, CAR-3)

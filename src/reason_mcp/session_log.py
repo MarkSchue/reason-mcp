@@ -12,7 +12,7 @@ Filename format::
 
 The Markdown document covers:
     1. Request parameters
-    2. Every pipeline step (pruner, normaliser, Path A det., Path B sem., compressor …)
+    2. Every pipeline step (pruner, normaliser, semantic retrieval, compressor …)
     3. Decisions & rationale recorded during processing
     4. The full response payload returned to the host LLM
 """

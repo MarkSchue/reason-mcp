@@ -13,7 +13,7 @@ Use this pattern:
 
 Examples:
 - `REQ-001-observation-model.md`
-- `REQ-002-deterministic-reasoning.md`
+- `REQ-002-semantic-retrieval-core.md`
 
 Rules:
 - `<NNN>` is a 3-digit sequence starting at `001`.

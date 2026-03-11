@@ -1,19 +1,14 @@
 """Reasoning MCP tool – registers `reasoning_analyze_context` on the server.
 
 Pipeline (Lean Context Injection):
-  observations / keywords  →  [Pruner]  →  [Normalizer]  →  [Candidate Filter]
+  observations / keywords  →  [Pruner]  →  [Normalizer]  →  [Semantic Filter]
   →  [Compressor / top_k]  →  #Rule-formatted context bundle  →  Host LLM
 
-Three retrieval paths run in parallel for every request:
-  Structured  – caller supplies observation IDs from sensors/telemetry.
-  Keyword     – caller (Host LLM) extracts keywords from a natural-language query
-               and passes them; the filter matches them against trigger.keywords.
-  Semantic    – always active; embeds the query string and searches the local
-               Chroma vector index for closest-matching rule chunks.
-               Requires the ``[semantic]`` extras (gracefully skipped if absent).
-
-Results from all three paths are unioned and ranked together.  A rule fires on
-any hit from any path.  Neither path gates the others.
+Retrieval:
+  Semantic  – always active; embeds a query built from keywords and observation
+              IDs/values, then searches the vector index for closest-matching
+              rule chunks.  Catch-all rules (no trigger criteria) are always
+              included regardless of semantic score.
 
 Facts are embedded directly in rule conditions — no separate resolution step.
 """
@@ -86,10 +81,9 @@ def register(mcp: FastMCP) -> None:
         name="reasoning_analyze_context",
         description=(
             "Retrieve domain-specific rules relevant to the given observations or keywords. "
-            "Three parallel retrieval paths: (1) structured — pass observation IDs from "
-            "sensors/telemetry; (2) keyword — pass keywords extracted from a natural-language "
-            "query (e.g. ['car', 'weight']); (3) semantic — always active, vector-similarity "
-            "search over embedded rule chunks. All paths run in parallel and results are unioned. "
+            "Semantic retrieval is always active: a query is built from the supplied keywords "
+            "and observation IDs/values and matched against the embedded rule chunks via vector "
+            "similarity. Catch-all rules (no trigger criteria) are always included. "
             "Returns a lean, #Rule-formatted knowledge bundle so the calling LLM can reason "
             "about the context without needing prior domain training."
         ),
@@ -174,18 +168,7 @@ def register(mcp: FastMCP) -> None:
                 "normalised_keyword_set": sorted(kw_set),
             })
 
-        # 4. Build search inputs for both paths
-        #    4A: Deterministic path inputs (obs_ids + kw_set already built above)
-        if config.log_requests:
-            slog.record_step("Step 4A — Deterministic search parameters", {
-                "obs_ids": sorted(obs_ids),
-                "keyword_set": sorted(kw_set),
-                "domain_filter": domain,
-                "context_state_filter": context_state,
-                "total_rules_in_knowledge_base": len(rules),
-            })
-
-        #    4B: Semantic path — build query text, always runs in parallel
+        # 4. Build semantic query from keywords and observation tokens
         nl_parts: list[str] = []
         if keywords:
             nl_parts.extend(keywords)
@@ -194,60 +177,47 @@ def register(mcp: FastMCP) -> None:
             nl_parts.append(str(obs.get("value", "")))
         effective_semantic_query: str | None = " ".join(nl_parts) if nl_parts else None
         if config.log_requests:
-            slog.record_step("Step 4B — Semantic query construction", {
+            slog.record_step("Step 4 — Semantic query construction", {
                 "effective_semantic_query": effective_semantic_query,
                 "semantic_min_score": semantic_min_score,
+                "domain_filter": domain,
+                "total_rules_in_knowledge_base": len(rules),
             })
 
-        # 5. Filter candidate rules (observations OR keywords OR semantic)
+        # 5. Filter candidate rules (semantic + catch-all)
         candidates = filter_candidates(
             rules,
-            obs_ids,
             domain=domain,
-            context_state=context_state,
-            keywords=kw_set,
             semantic_query=effective_semantic_query,
             semantic_min_score=semantic_min_score,
         )
         if config.log_requests:
-            _path_a = [
-                {"rule_id": c.get("rule_id"), "det_score": round(c.get("_det_score", 0), 4)}
-                for c in candidates if c.get("_det_score", 0) > 0
-            ]
-            _path_b = [
+            _sem_hits = [
                 {"rule_id": c.get("rule_id"), "sem_score": round(c.get("_sem_score", 0), 4)}
-                for c in candidates if c.get("_sem_score", 0) > 0
+                for c in candidates if c.get("_sem_score", 0) > 0 and c.get("_source") != "graph"
             ]
-            _both = sorted(
+            _graph_hits = [
+                {"node_id": c.get("rule_id"), "sem_score": round(c.get("_sem_score", 0), 4)}
+                for c in candidates if c.get("_source") == "graph"
+            ]
+            _catch_all = [
                 c.get("rule_id") for c in candidates
-                if c.get("_det_score", 0) > 0 and c.get("_sem_score", 0) > 0
-            )
-            slog.record_step("Step 5A — Path A (Deterministic retrieval)", {
-                "matched_count": len(_path_a),
-                "rules": _path_a,
-            })
-            slog.record_step("Step 5B — Path B (Semantic retrieval)", {
+                if c.get("_sem_score", 0) == 0 and c.get("_source") != "graph"
+            ]
+            slog.record_step("Step 5 — Semantic retrieval + graph traversal + catch-all", {
                 "query": effective_semantic_query,
-                "matched_count": len(_path_b),
-                "rules": _path_b,
-            })
-            slog.record_step("Step 5C — Union & score annotation", {
+                "sem_hit_count": len(_sem_hits),
+                "sem_hits": _sem_hits,
+                "graph_hit_count": len(_graph_hits),
+                "graph_hits": _graph_hits,
+                "catch_all_count": len(_catch_all),
+                "catch_all_rules": _catch_all,
                 "total_candidates": len(candidates),
-                "found_by_both_paths": _both,
-                "all_candidates": [
-                    {
-                        "rule_id": c.get("rule_id"),
-                        "det_score": round(c.get("_det_score", 0), 4),
-                        "sem_score": round(c.get("_sem_score", 0), 4),
-                    }
-                    for c in candidates
-                ],
             })
 
         # 6. Rank, compress to top_k, strip metadata
         lean_rules = compress(
             candidates,
-            obs_ids,
             top_k=effective_top_k,
             min_relevance=effective_min_rel,
         )
@@ -284,6 +254,7 @@ def register(mcp: FastMCP) -> None:
                     "zero_value_pruning",
                     "lean_context_injection",
                     "semantic_retrieval",
+                    "graph_traversal",
                 ],
                 "trace_id": trace_id,
             },

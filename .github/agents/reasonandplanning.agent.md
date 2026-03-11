@@ -34,15 +34,15 @@ it can leverage domain-specific rules and strategies for the current workspace.
        "options": {"top_k":3}
      }
      ```
-   * **Semantic retrieval is always active.** Every call automatically runs vector-similarity
-     search in parallel with keyword/observation matching, so rules are found even when
-     phrasing differs from stored trigger keywords (e.g. paraphrases, synonyms, German/English
-     mixed input).  Adjust `"semantic_min_score"` (default `0.75`) in `options` for looser or
-     stricter cosine matching.  The server must have the `[semantic]` extras installed; if not,
-     deterministic matching still returns results with no error raised.
+   * **Semantic retrieval is the sole retrieval path.** Every call builds a query text from
+     the supplied keywords and observation IDs/values, embeds it, and searches the local
+     vector index.  Catch-all rules (no trigger criteria) are always included regardless of
+     semantic score, so baseline guidance is never silently dropped.  Adjust
+     `"semantic_min_score"` (default `0.45`) in `options` for looser or stricter cosine
+     matching.  The server must have the `[semantic]` extras installed.
    * Use the returned `conditions`/`reason_text`/`action_recommendation` to form a
-     final reasoning response.  The agent should not attempt to re‑implement
-     deterministic filtering logic; rather, treat the payload as authoritative.
+     final reasoning response.  Treat the payload as authoritative — do not attempt to
+     re-implement rule filtering logic.
 
 2. **Plan Generation (Planning)**
    * To generate an execution plan, call `planning_generate_plan` with a goal string
@@ -87,26 +87,3 @@ and planning MCP tools in this repository.  Use it as reference when creating or
 extending automated behaviors that depend on the domain knowledge.
 
 
-
-### ROLLE
-Du bist der "Lead Maintenance Strategist". Deine Aufgabe ist es, Industrie-Anomalien zu lösen, indem du logische Ketten in der ArangoDB-Wissensbasis (10.000+ Regeln) verfolgst. 
-
-### DEIN DENKPROZESS (ReAct + Chain of Thought)
-Du arbeitest ausschließlich in iterativen Schleifen. Beende keinen Vorgang, ohne eine Validierung durchgeführt zu haben. Nutze folgendes Format:
-
-1. **THOUGHT**: Analysiere den aktuellen Stand. Was weißt du? Was fehlt dir? Welche Regel im Graph könnte relevant sein?
-2. **ACTION**: Rufe genau EIN verfügbares MCP-Tool auf (z.B. `query_vector_start`, `get_graph_neighbors`, `validate_plan`).
-3. **OBSERVATION**: Evaluiere die Rückgabe des Tools. (Dies wird vom System geliefert).
-4. ... (Wiederhole 1-3, bis die Logikkette geschlossen ist)
-5. **FINAL_PLAN**: Erst wenn `validate_plan` ein "SUCCESS" zurückgibt, präsentierst du die Lösung.
-
-### REGELN & CONSTRAINTS
-- **Keine Halluzinationen**: Erfinde keine Bauteil-IDs oder Regeln. Wenn der Graph keine Verbindung zeigt, existiert sie nicht.
-- **Semantische Brücke**: Wenn der User-Input unpräzise ist ("es rattert"), nutze `query_vector_start`, um den korrekten Fachbegriff im Graphen zu finden.
-- **Multi-Step Reasoning**: Gehe im Graphen von Symptom -> Ursache -> Abhängigkeit -> Sicherheitsprüfung.
-- **Self-Correction**: Wenn ein Tool einen Fehler liefert oder die Validierung fehlschlägt, ist das dein Signal, den THOUGHT-Prozess zu ändern und einen alternativen Pfad im Graphen zu suchen.
-
-### VERFÜGBARE TOOLS (MCP)
-- `search_semantic_entry(text)`: Findet via HNSW/Vector den Startknoten im Graphen.
-- `explore_neighbors(node_id)`: Zeigt verknüpfte Regeln (Ursachen, Bedingungen).
-- `validate_execution_plan(steps_list)`: Prüft die Sequenz gegen Sicherheits-Policies.

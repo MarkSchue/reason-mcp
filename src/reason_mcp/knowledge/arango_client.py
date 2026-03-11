@@ -33,7 +33,7 @@ _VECTOR_INDEX_NAME = "reason_vec"
 # ---------------------------------------------------------------------------
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def _get_db_cached(url: str, user: str, password: str, db_name: str) -> Any:
     """Open or create the target database and return a cached handle."""
     try:
@@ -306,5 +306,271 @@ def vector_search(
         hits=len(results),
         min_score=min_score,
         domain=domain,
+    )
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Graph database — connection
+# ---------------------------------------------------------------------------
+
+
+def get_graph_db() -> Any:
+    """Return the cached graph database handle using runtime config.
+
+    Reuses :func:`_get_db_cached` — both the rules DB and the graph DB share
+    the same underlying connection pool keyed on (url, user, password, db_name).
+    """
+    from reason_mcp.config import config
+
+    return _get_db_cached(
+        config.arango_url,
+        config.arango_user,
+        config.arango_password,
+        config.praxis_db,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Graph — schema setup
+# ---------------------------------------------------------------------------
+
+def _vertex_coll_for_node_id(node_id: str) -> str:
+    """Infer the vertex collection name from a node_id prefix using the configured specs."""
+    from reason_mcp.config import config
+
+    for spec in config.praxis_vertex_specs:
+        if node_id.startswith(spec.key_prefix):
+            return spec.collection
+    # Fallback: first vertex spec collection
+    return config.praxis_vertex_specs[0].collection
+
+
+def ensure_graph_schema() -> None:
+    """Idempotently create all vertex/edge collections and the named graph.
+
+    The exact collection names and edge topology are read from
+    :attr:`~reason_mcp.config.Config.praxis_vertex_specs` and
+    :attr:`~reason_mcp.config.Config.praxis_edge_specs` — no collection
+    names are hardcoded here.
+
+    Safe to call on every seed run; does nothing if already present.
+    """
+    from reason_mcp.config import config
+
+    db = get_graph_db()
+    graph_name = config.praxis_graph_name
+
+    # Vertex collections
+    for vspec in config.praxis_vertex_specs:
+        if not db.has_collection(vspec.collection):
+            db.create_collection(vspec.collection)
+            logger.info("created vertex collection", name=vspec.collection)
+        coll = db.collection(vspec.collection)
+        existing = {idx.get("name") for idx in coll.indexes()}
+        if "idx_node_id" not in existing:
+            coll.add_persistent_index(
+                fields=["node_id"], unique=True, sparse=False, name="idx_node_id"
+            )
+            logger.info("created node_id index", coll=vspec.collection)
+
+    # Edge collections
+    for espec in config.praxis_edge_specs:
+        if not db.has_collection(espec.collection):
+            db.create_collection(espec.collection, edge=True)
+            logger.info("created edge collection", name=espec.collection)
+
+    # Named graph — edge definitions come entirely from config
+    if not db.has_graph(graph_name):
+        db.create_graph(
+            graph_name,
+            edge_definitions=[
+                {
+                    "edge_collection": espec.collection,
+                    "from_vertex_collections": [espec.from_collection],
+                    "to_vertex_collections": [espec.to_collection],
+                }
+                for espec in config.praxis_edge_specs
+            ],
+        )
+        logger.info("created named graph", name=graph_name)
+
+
+# ---------------------------------------------------------------------------
+# Graph — CRUD helpers
+# ---------------------------------------------------------------------------
+
+
+def upsert_node(node: dict[str, Any]) -> None:
+    """Insert or replace a node into the correct typed vertex collection.
+
+    Routes to the appropriate collection based on ``node["type"]`` and the
+    :attr:`~reason_mcp.config.Config.praxis_vertex_specs` from config.
+    ``node["node_id"]`` is used as ``_key``.
+    """
+    from reason_mcp.config import config
+
+    node_type = node.get("type", "")
+    spec = next((s for s in config.praxis_vertex_specs if s.type_name == node_type), None)
+    if spec is None:
+        known = [s.type_name for s in config.praxis_vertex_specs]
+        raise ValueError(f"Unknown node type {node_type!r} — known types: {known}")
+
+    db = get_graph_db()
+    doc = {**node, "_key": node["node_id"]}
+    db.collection(spec.collection).insert(doc, overwrite=True, overwrite_mode="replace")
+
+
+def upsert_graph_edge(edge: dict[str, Any]) -> None:
+    """Insert or replace an edge into the correct typed edge collection.
+
+    Routes to the appropriate collection based on ``edge["type"]`` and the
+    :attr:`~reason_mcp.config.Config.praxis_edge_specs` from config.
+    The ``_from`` / ``_to`` vertex collections are taken from the spec, so
+    no topology knowledge lives in this function.
+
+    ``_key`` is taken from ``edge_id`` when present; otherwise derived as
+    ``<from_node_id>__<to_node_id>__<type>``.
+    """
+    from reason_mcp.config import config
+
+    edge_type = edge.get("type", "")
+    spec = next((s for s in config.praxis_edge_specs if s.type_name == edge_type), None)
+    if spec is None:
+        known = [s.type_name for s in config.praxis_edge_specs]
+        raise ValueError(f"Unknown edge type {edge_type!r} — known types: {known}")
+
+    from_key = edge["from_node_id"]
+    to_key = edge["to_node_id"]
+    edge_key = edge.get("edge_id") or f"{from_key}__{to_key}__{edge_type}"
+
+    doc = {
+        **{k: v for k, v in edge.items() if k not in ("from_node_id", "to_node_id", "edge_id")},
+        "_key": edge_key,
+        "_from": f"{spec.from_collection}/{from_key}",
+        "_to": f"{spec.to_collection}/{to_key}",
+    }
+    db = get_graph_db()
+    db.collection(spec.collection).insert(doc, overwrite=True, overwrite_mode="replace")
+
+
+# ---------------------------------------------------------------------------
+# Graph — traversal
+# ---------------------------------------------------------------------------
+
+
+def traverse_from_node(
+    start_key: str,
+    depth: int = 2,
+    direction: str = "OUTBOUND",
+) -> list[dict[str, Any]]:
+    """Traverse the praxis graph starting from *start_key*.
+
+    The starting vertex collection is inferred from the node_id key prefix
+    using the configured :attr:`~reason_mcp.config.Config.praxis_vertex_specs`.
+
+    Returns a list of ``{"vertex": <node doc>, "edge": <edge doc>}`` dicts
+    for every step reachable within *depth* hops in the given *direction*.
+    """
+    from reason_mcp.config import config
+
+    db = get_graph_db()
+    start_coll = _vertex_coll_for_node_id(start_key)
+    graph_name = config.praxis_graph_name
+
+    aql = f"""
+        FOR v, e IN 1..@depth {direction}
+            DOCUMENT(CONCAT(@start_coll, '/', @start_key))
+            GRAPH @graph_name
+            RETURN {{
+                vertex: UNSET(v, "embedding", "_id", "_rev"),
+                edge: UNSET(e, "_id", "_rev")
+            }}
+    """
+    try:
+        cursor = db.aql.execute(
+            aql,
+            bind_vars={
+                "depth": depth,
+                "start_coll": start_coll,
+                "start_key": start_key,
+                "graph_name": graph_name,
+            },
+        )
+        results = list(cursor)
+        logger.info(
+            "graph_traverse",
+            start_key=start_key,
+            start_coll=start_coll,
+            depth=depth,
+            direction=direction,
+            steps=len(results),
+        )
+        return results
+    except Exception:
+        logger.exception("graph traversal failed", start_key=start_key)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Graph — semantic node search
+# ---------------------------------------------------------------------------
+
+
+def vector_search_nodes(
+    query_embedding: list[float],
+    top_k: int = 5,
+    min_score: float = 0.45,
+    node_type: str | None = None,
+) -> list[tuple[str, float]]:
+    """Return up to *top_k* ``(node_id, cosine_score)`` pairs for *query_embedding*.
+
+    Searches all configured vertex collections (or only those matching
+    *node_type*).  Uses Python-side exact cosine similarity.
+
+    Args:
+        query_embedding: 384-dim vector from :func:`embedder.embed_text`.
+        top_k:           Maximum hits to return.
+        min_score:       Minimum cosine similarity (0..1).
+        node_type:       ``type_name`` from a :class:`~reason_mcp.config.VertexSpec`
+                         to restrict the search to a single vertex collection.
+
+    Returns:
+        List of ``(node_id, score)`` tuples sorted by descending score.
+    """
+    from reason_mcp.config import config
+
+    db = get_graph_db()
+
+    # Determine which collections to search
+    if node_type is not None:
+        specs = [s for s in config.praxis_vertex_specs if s.type_name == node_type]
+    else:
+        specs = list(config.praxis_vertex_specs)
+    collections = [s.collection for s in specs]
+
+    scored: list[tuple[str, float]] = []
+    for coll_name in collections:
+        aql = """
+            FOR doc IN @@coll
+                FILTER doc.embedding != null
+                RETURN {node_id: doc.node_id, embedding: doc.embedding}
+        """
+        try:
+            cursor = db.aql.execute(aql, bind_vars={"@coll": coll_name})
+            for row in cursor:
+                score = round(_cosine_sim(query_embedding, row["embedding"]), 4)
+                if score >= min_score:
+                    scored.append((row["node_id"], score))
+        except Exception:
+            logger.exception("vector_search_nodes failed for collection", coll=coll_name)
+
+    results = sorted(scored, key=lambda x: x[1], reverse=True)[:top_k]
+    logger.info(
+        "vector_search_nodes",
+        hits=len(results),
+        min_score=min_score,
+        node_type=node_type,
+        collections=collections,
     )
     return results
