@@ -1,19 +1,28 @@
 """Candidate Rule Filter — semantic retrieval + graph traversal.
 
-Two retrieval paths run for every call:
+Three retrieval paths run for every call:
 
   Semantic (always active)
       Vector cosine similarity via the vector index on the rules collection.
       Returns each matching rule together with the actual *cosine score*.
 
-  Graph traversal (praxis domain)
-      Semantic search over the praxis graph nodes, followed by a 1-hop
-      OUTBOUND traversal to collect connected nodes (e.g. WorkingHours linked
-      via "arbeitet" edges).  Results are shaped into rule-like dicts so the
-      compressor can rank them alongside regular rules.
+  Graph node search + traversal
+      Semantic + keyword search over the graph vertex collections, followed
+      by a configurable-depth ANY traversal (env ``REASON_GRAPH_TRAVERSAL_DEPTH``,
+      default 2) to collect connected nodes and edges.  Both inbound and
+      outbound edges are captured with explicit direction markers.
+
+  Graph edge search
+      Semantic + keyword search directly over edge collections.  Catches
+      queries that match relationship labels/descriptions even when the
+      endpoint nodes do not score high enough on their own.
 
 Catch-all rules (no trigger criteria at all) are always included regardless
 of the semantic search result.  This ensures baseline coverage.
+
+All collection names, edge topologies, and domain labels are config-driven
+via ``REASON_PRAXIS_VERTEX_SPECS`` and ``REASON_PRAXIS_EDGE_SPECS`` — no
+domain-specific knowledge is hardcoded in this module.
 
 Each returned rule has one transient score field attached:
     ``_sem_score``   — 0..1, from the semantic path (0 = catch-all, not in index)
@@ -33,6 +42,19 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _graph_domain() -> str:
+    """Return the graph database name used as domain label for graph candidates.
+
+    Reads from :attr:`~reason_mcp.config.Config.praxis_db` so the value
+    tracks whatever database the deployment is configured with.
+    """
+    try:
+        from reason_mcp.config import config
+        return config.praxis_db
+    except Exception:
+        return "graph"
+
 
 def _rule_key(rule: dict[str, Any]) -> str:
     """Stable composite key: '<domain>::<rule_id>'.  Unique across all files."""
@@ -80,10 +102,21 @@ def _graph_candidates(
     min_score: float,
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
-    """Search praxis graph nodes semantically, then traverse 1 hop outbound.
+    """Search praxis graph nodes AND edges semantically, then traverse to build context.
 
-    Each matching Worker node is combined with its connected WorkingHours
-    (via ``arbeitet`` edges) into a rule-like dict the compressor can rank.
+    Two parallel retrieval strategies:
+
+    **Node-first** (existing):
+        Semantic + keyword search over vertex collections, then 1-hop ANY
+        traversal to collect connected nodes and edges.
+
+    **Edge-first** (new):
+        Semantic + keyword search directly over edge collections, then resolve
+        the endpoint nodes for full context.  This catches queries that match
+        edge labels/relationships even when the involved nodes don't score
+        high enough on their own.
+
+    Both sets of candidates are merged (deduped by ``rule_id``).
 
     Returns:
         List of rule-shaped dicts with ``_sem_score`` and ``_source="graph"``
@@ -93,50 +126,142 @@ def _graph_candidates(
         from reason_mcp.tools.reasoning.embedder import embed_text
         from reason_mcp.knowledge.arango_client import (
             vector_search_nodes,
+            keyword_search_nodes,
+            keyword_vector_search_nodes,
+            vector_search_edges,
+            keyword_search_edges,
+            keyword_vector_search_edges,
+            get_edge_document,
             traverse_from_node,
+            get_graph_db,
+            _vertex_coll_for_node_id,
         )
     except ImportError:
         logger.warning("graph traversal dependencies not available")
         return []
 
+    # --- Embed query once ---
+    query_embedding: list[float] | None = None
     try:
         query_embedding = embed_text(semantic_query)
-        node_hits = vector_search_nodes(
-            query_embedding, top_k=top_k, min_score=min_score
-        )
     except Exception:
-        logger.exception("praxis node search failed")
+        logger.exception("failed to embed query for graph search")
+
+    # ─── NODE-FIRST PATH ─────────────────────────────────────────────
+    # Semantic vector search (description embedding)
+    sem_hits: list[tuple[str, float]] = []
+    if query_embedding:
+        try:
+            sem_hits = vector_search_nodes(
+                query_embedding, top_k=top_k, min_score=min_score
+            )
+        except Exception:
+            logger.exception("praxis semantic node search failed")
+
+    # Keyword vector search (keywords_embedding)
+    kw_vec_hits: list[tuple[str, float]] = []
+    if query_embedding:
+        try:
+            kw_vec_hits = keyword_vector_search_nodes(
+                query_embedding, top_k=top_k, min_score=min_score
+            )
+        except Exception:
+            logger.exception("praxis keyword vector search failed")
+
+    # AQL keyword / name search (no embedding required)
+    kw_hits: list[tuple[str, float]] = []
+    try:
+        kw_hits = keyword_search_nodes(semantic_query, top_k=top_k)
+    except Exception:
+        logger.exception("praxis keyword node search failed")
+
+    # Merge all three node paths: highest score per node_id, trim to top_k
+    best_nodes: dict[str, float] = {}
+    for node_id, score in sem_hits + kw_vec_hits + kw_hits:
+        if node_id not in best_nodes or score > best_nodes[node_id]:
+            best_nodes[node_id] = score
+    node_hits: list[tuple[str, float]] = sorted(
+        best_nodes.items(), key=lambda x: x[1], reverse=True
+    )[:top_k]
+
+    # ─── EDGE-FIRST PATH ─────────────────────────────────────────────
+    edge_sem_hits: list[tuple[str, float]] = []
+    if query_embedding:
+        try:
+            edge_sem_hits = vector_search_edges(
+                query_embedding, top_k=top_k, min_score=min_score
+            )
+        except Exception:
+            logger.exception("praxis semantic edge search failed")
+
+    edge_kw_vec_hits: list[tuple[str, float]] = []
+    if query_embedding:
+        try:
+            edge_kw_vec_hits = keyword_vector_search_edges(
+                query_embedding, top_k=top_k, min_score=min_score
+            )
+        except Exception:
+            logger.exception("praxis keyword vector edge search failed")
+
+    edge_kw_hits: list[tuple[str, float]] = []
+    try:
+        edge_kw_hits = keyword_search_edges(semantic_query, top_k=top_k)
+    except Exception:
+        logger.exception("praxis keyword edge search failed")
+
+    best_edges: dict[str, float] = {}
+    for edge_key, score in edge_sem_hits + edge_kw_vec_hits + edge_kw_hits:
+        if edge_key not in best_edges or score > best_edges[edge_key]:
+            best_edges[edge_key] = score
+    edge_hits: list[tuple[str, float]] = sorted(
+        best_edges.items(), key=lambda x: x[1], reverse=True
+    )[:top_k]
+
+    if not node_hits and not edge_hits:
         return []
 
     candidates: list[dict[str, Any]] = []
+    seen_rule_ids: set[str] = set()
+
+    # ─── Build candidates from NODE hits + traversal ──────────────────
+    from reason_mcp.config import config as _cfg
+
+    _traversal_depth = _cfg.graph_traversal_depth
 
     for node_id, score in node_hits:
-        # Traverse 1 hop outbound to get connected WorkingHours nodes
         try:
-            steps = traverse_from_node(node_id, depth=1, direction="OUTBOUND")
+            steps = traverse_from_node(node_id, depth=_traversal_depth, direction="ANY")
         except Exception:
             logger.warning("graph traversal failed for node", node_id=node_id)
             steps = []
 
-        # Build a natural-language description from the traversal subgraph
         connected_descriptions: list[str] = []
         for step in steps:
             vertex = step.get("vertex", {})
             edge = step.get("edge", {})
-            edge_label = edge.get("label", edge.get("type", ""))
+            edge_label = edge.get("label", edge.get("description", edge.get("type", "")))
             vertex_desc = vertex.get("description", vertex.get("name", ""))
-            if edge_label or vertex_desc:
-                connected_descriptions.append(
-                    f"{edge_label}: {vertex_desc}" if edge_label else vertex_desc
-                )
 
-        # Compose a rule-shaped dict from the graph node + neighbours
-        # (must have conditions.natural_language for the renderer to work)
-        # Start from the matched node's own description and append neighbours
+            # Derive actual edge direction from _from/_to document handles.
+            edge_from_key = (edge.get("_from") or "").split("/")[-1]
+            edge_to_key = (edge.get("_to") or "").split("/")[-1]
+            vertex_key = vertex.get("_key", "")
+
+            # Show the relationship as: source → label → target
+            # The traversed-to vertex is `vertex`; the other end is the peer.
+            if vertex_key == edge_to_key:
+                # outbound edge: peer → vertex
+                desc = f"{edge_from_key} →{edge_label}→ {vertex_desc}" if edge_label else f"{edge_from_key} → {vertex_desc}"
+            else:
+                # inbound edge: vertex → peer
+                desc = f"{vertex_desc} →{edge_label}→ {edge_to_key}" if edge_label else f"{vertex_desc} → {edge_to_key}"
+
+            if edge_label or vertex_desc:
+                connected_descriptions.append(desc)
+
         start_node_desc = f"(node {node_id} description unavailable)"
+        doc = None
         try:
-            # Pull the full node doc for the description
-            from reason_mcp.knowledge.arango_client import get_graph_db, _vertex_coll_for_node_id
             db = get_graph_db()
             doc = db.collection(_vertex_coll_for_node_id(node_id)).get(node_id)
             if doc:
@@ -148,19 +273,19 @@ def _graph_candidates(
         if connected_descriptions:
             nl += "\n" + " | ".join(connected_descriptions)
 
+        rule_id = node_id
+        seen_rule_ids.add(rule_id)
+        node_name = doc.get("name", node_id) if doc else node_id
         candidate: dict[str, Any] = {
-            "rule_id": node_id,
-            "domain": "praxis",
+            "rule_id": rule_id,
+            "domain": _graph_domain(),
             "conditions": {"natural_language": nl},
             "reasoning": {
                 "possible_causes": connected_descriptions or [start_node_desc],
                 "confidence_prior": 0.9,
             },
             "recommendation": {
-                "action": (
-                    f"Kontaktieren Sie {doc.get('name', node_id)} innerhalb der angegebenen Arbeitszeiten."
-                    if doc else f"Kontaktieren Sie {node_id} innerhalb der angegebenen Arbeitszeiten."
-                ),
+                "action": f"See node {node_name} and its connected relationships.",
             },
             "scoring": {"severity": 2, "specificity": 0.9},
             "_sem_score": score,
@@ -168,10 +293,71 @@ def _graph_candidates(
         }
         candidates.append(candidate)
 
+    # ─── Build candidates from EDGE hits ──────────────────────────────
+    for edge_key, score in edge_hits:
+        edge_doc = None
+        try:
+            edge_doc = get_edge_document(edge_key)
+        except Exception:
+            logger.warning("failed to fetch edge document", edge_key=edge_key)
+            continue
+
+        if not edge_doc:
+            continue
+
+        # Resolve endpoint nodes
+        from_key = (edge_doc.get("_from") or "").split("/")[-1]
+        to_key = (edge_doc.get("_to") or "").split("/")[-1]
+
+        # Skip if we already created a candidate covering the same nodes
+        # (the node-first path would have traversed through this edge)
+        if from_key in seen_rule_ids and to_key in seen_rule_ids:
+            continue
+
+        edge_desc = edge_doc.get("description", edge_doc.get("label", edge_doc.get("type", "")))
+
+        # Resolve endpoint names
+        from_name = from_key
+        to_name = to_key
+        try:
+            db = get_graph_db()
+            from_coll = (edge_doc.get("_from") or "").split("/")[0]
+            to_coll = (edge_doc.get("_to") or "").split("/")[0]
+            from_node = db.collection(from_coll).get(from_key) if from_coll else None
+            to_node = db.collection(to_coll).get(to_key) if to_coll else None
+            if from_node:
+                from_name = from_node.get("name", from_key)
+            if to_node:
+                to_name = to_node.get("name", to_key)
+        except Exception:
+            pass
+
+        nl = f"{edge_desc}\n→ {from_name} → {to_name}"
+
+        rule_id = f"edge:{edge_key}"
+        seen_rule_ids.add(rule_id)
+        candidate = {
+            "rule_id": rule_id,
+            "domain": _graph_domain(),
+            "conditions": {"natural_language": nl},
+            "reasoning": {
+                "possible_causes": [edge_desc],
+                "confidence_prior": 0.85,
+            },
+            "recommendation": {
+                "action": f"Relationship: {from_name} → {to_name} ({edge_doc.get('type', '')})",
+            },
+            "scoring": {"severity": 2, "specificity": 0.85},
+            "_sem_score": score,
+            "_source": "graph_edge",
+        }
+        candidates.append(candidate)
+
     logger.info(
         "graph_filter",
         query=semantic_query[:60],
         node_hits=len(node_hits),
+        edge_hits=len(edge_hits),
         candidates=len(candidates),
     )
     return candidates
@@ -189,10 +375,11 @@ def filter_candidates(
 ) -> list[dict[str, Any]]:
     """Return candidate rules from semantic retrieval, graph traversal, and catch-all rules.
 
-    Three sources are merged:
+    Four sources are merged:
     1. Semantic hits from the rules collection (vector similarity).
-    2. Graph traversal hits from the praxis nodes collection (if a query is given).
-    3. Catch-all rules (no trigger criteria) — always included.
+    2. Graph node search + traversal hits from vertex collections (if a query is given).
+    3. Graph edge search hits from edge collections (if a query is given).
+    4. Catch-all rules (no trigger criteria) — always included.
 
     Each returned dict has ``_sem_score`` attached for downstream ranking.
 
@@ -209,7 +396,7 @@ def filter_candidates(
         sem_results = _sem_candidates(rules, semantic_query, semantic_min_score, domain)
         sem_by_key = {_rule_key(r): (r, score) for r, score in sem_results}
 
-    # --- Graph traversal path (praxis nodes) ---
+    # --- Graph path (node + edge search, traversal) ---
     graph_results: list[dict[str, Any]] = []
     if semantic_query:
         graph_results = _graph_candidates(semantic_query, semantic_min_score)

@@ -1,0 +1,44 @@
+[
+  {
+    "edge_id": "bauer__arbeitet__mon_wed_fri_0900_1300",
+    "from_node_id": "worker_frau_bauer",
+    "to_node_id": "hours_mon_wed_fri_0900_1300",
+    "type": "arbeitet",
+    "description": "Frau Bauer arbeitet Montags, Mittwochs und Freitags 09:00–13:00 (Teilzeit) (Teilzeit-Arbeitszeit montags, mittwochs und freitags von 09:00 bis 13:00 Uhr.)"
+  },
+  {
+    "edge_id": "hoffmann__arbeitet__thu_fri_1200_1800",
+    "from_node_id": "worker_frau_hoffmann",
+    "to_node_id": "hours_thu_fri_1200_1800",
+    "type": "arbeitet",
+    "description": "Frau Hoffmann arbeitet Donnerstags und Freitags 12:00–18:00 (Spätdienst) (Spätdienst donnerstags und freitags von 12:00 bis 18:00 Uhr.)"
+  },
+  {
+    "edge_id": "meier__arbeitet__mon_tue_wed_0800_1000",
+    "from_node_id": "worker_frau_meier",
+    "to_node_id": "hours_mon_tue_wed_0800_1000",
+    "type": "arbeitet",
+    "description": "Frau Meier arbeitet Montags bis Mittwochs 08:00–10:00 (Frühdienst) (Frühdienst montags bis mittwochs von 08:00 bis 10:00 Uhr.)"
+  },
+  {
+    "edge_id": "mueller__arbeitet__mon_tue_wed_0900_1700",
+    "from_node_id": "worker_herr_mueller",
+    "to_node_id": "hours_mon_tue_wed_0900_1700",
+    "type": "arbeitet",
+    "description": "Herr Müller arbeitet Montags bis Mittwochs 09:00–17:00 (Arbeitszeit montags bis mittwochs von 09:00 bis 17:00 Uhr.)"
+  },
+  {
+    "edge_id": "schmidt__arbeitet__fri_1000_1800",
+    "from_node_id": "worker_frau_schmidt",
+    "to_node_id": "hours_fri_1000_1800",
+    "type": "arbeitet",
+    "description": "Frau Schmidt arbeitet Freitags 10:00–18:00 (Arbeitszeit freitags von 10:00 bis 18:00 Uhr.)"
+  },
+  {
+    "edge_id": "wagner__arbeitet__tue_thu_0800_1600",
+    "from_node_id": "worker_herr_wagner",
+    "to_node_id": "hours_tue_thu_0800_1600",
+    "type": "arbeitet",
+    "description": "Herr Wagner arbeitet Dienstags und Donnerstags 08:00–16:00 (Arbeitszeit dienstags und donnerstags von 08:00 bis 16:00 Uhr.)"
+  }
+]

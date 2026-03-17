@@ -1,0 +1,119 @@
+[
+  {
+    "node_id": "hours_fri_1000_1800",
+    "type": "WorkingHours",
+    "name": "Freitags 10:00–18:00",
+    "description": "Arbeitszeit freitags von 10:00 bis 18:00 Uhr.",
+    "days": [
+      "Freitag"
+    ],
+    "start": "10:00",
+    "end": "18:00",
+    "keywords": [
+      "freitag",
+      "10:00",
+      "18:00",
+      "freitags"
+    ]
+  },
+  {
+    "node_id": "hours_mon_tue_wed_0800_1000",
+    "type": "WorkingHours",
+    "name": "Montags bis Mittwochs 08:00–10:00 (Frühdienst)",
+    "description": "Frühdienst montags bis mittwochs von 08:00 bis 10:00 Uhr.",
+    "days": [
+      "Montag",
+      "Dienstag",
+      "Mittwoch"
+    ],
+    "start": "08:00",
+    "end": "10:00",
+    "keywords": [
+      "montag",
+      "dienstag",
+      "mittwoch",
+      "08:00",
+      "10:00",
+      "frühdienst"
+    ]
+  },
+  {
+    "node_id": "hours_mon_tue_wed_0900_1700",
+    "type": "WorkingHours",
+    "name": "Montags bis Mittwochs 09:00–17:00",
+    "description": "Arbeitszeit montags bis mittwochs von 09:00 bis 17:00 Uhr.",
+    "days": [
+      "Montag",
+      "Dienstag",
+      "Mittwoch"
+    ],
+    "start": "09:00",
+    "end": "17:00",
+    "keywords": [
+      "montag",
+      "dienstag",
+      "mittwoch",
+      "09:00",
+      "17:00",
+      "montags bis mittwochs"
+    ]
+  },
+  {
+    "node_id": "hours_mon_wed_fri_0900_1300",
+    "type": "WorkingHours",
+    "name": "Montags, Mittwochs und Freitags 09:00–13:00 (Teilzeit)",
+    "description": "Teilzeit-Arbeitszeit montags, mittwochs und freitags von 09:00 bis 13:00 Uhr.",
+    "days": [
+      "Montag",
+      "Mittwoch",
+      "Freitag"
+    ],
+    "start": "09:00",
+    "end": "13:00",
+    "keywords": [
+      "montag",
+      "mittwoch",
+      "freitag",
+      "09:00",
+      "13:00",
+      "teilzeit"
+    ]
+  },
+  {
+    "node_id": "hours_thu_fri_1200_1800",
+    "type": "WorkingHours",
+    "name": "Donnerstags und Freitags 12:00–18:00 (Spätdienst)",
+    "description": "Spätdienst donnerstags und freitags von 12:00 bis 18:00 Uhr.",
+    "days": [
+      "Donnerstag",
+      "Freitag"
+    ],
+    "start": "12:00",
+    "end": "18:00",
+    "keywords": [
+      "donnerstag",
+      "freitag",
+      "12:00",
+      "18:00",
+      "spätdienst"
+    ]
+  },
+  {
+    "node_id": "hours_tue_thu_0800_1600",
+    "type": "WorkingHours",
+    "name": "Dienstags und Donnerstags 08:00–16:00",
+    "description": "Arbeitszeit dienstags und donnerstags von 08:00 bis 16:00 Uhr.",
+    "days": [
+      "Dienstag",
+      "Donnerstag"
+    ],
+    "start": "08:00",
+    "end": "16:00",
+    "keywords": [
+      "dienstag",
+      "donnerstag",
+      "08:00",
+      "16:00"
+    ]
+  }
+]

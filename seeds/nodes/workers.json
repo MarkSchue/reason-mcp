@@ -1,0 +1,86 @@
+[
+  {
+    "node_id": "worker_frau_bauer",
+    "type": "Worker",
+    "name": "Frau Bauer",
+    "description": "Frau Bauer ist medizinische Fachangestellte. E-Mail: frau.bauer@praxis-example.de.",
+    "role": "Medizinische Fachangestellte",
+    "email": "frau.bauer@praxis-example.de",
+    "keywords": [
+      "frau bauer",
+      "bauer",
+      "medizinische fachangestellte",
+      "frau.bauer@praxis-example.de"
+    ]
+  },
+  {
+    "node_id": "worker_frau_hoffmann",
+    "type": "Worker",
+    "name": "Frau Hoffmann",
+    "description": "Frau Hoffmann ist Arzthelferin. Telefon: +49 30 55667788.",
+    "role": "Arzthelferin",
+    "phone": "+49 30 55667788",
+    "keywords": [
+      "frau hoffmann",
+      "hoffmann",
+      "arzthelferin",
+      "+49 30 55667788"
+    ]
+  },
+  {
+    "node_id": "worker_frau_meier",
+    "type": "Worker",
+    "name": "Frau Meier",
+    "description": "Frau Meier ist Arzthelferin. Telefon: +49 30 98765432.",
+    "role": "Arzthelferin",
+    "phone": "+49 30 98765432",
+    "keywords": [
+      "frau meier",
+      "meier",
+      "arzthelferin",
+      "+49 30 98765432"
+    ]
+  },
+  {
+    "node_id": "worker_frau_schmidt",
+    "type": "Worker",
+    "name": "Frau Schmidt",
+    "description": "Frau Schmidt ist medizinische Fachangestellte. E-Mail: frau.schmidt@praxis-example.de.",
+    "role": "Medizinische Fachangestellte",
+    "email": "frau.schmidt@praxis-example.de",
+    "keywords": [
+      "frau schmidt",
+      "schmidt",
+      "medizinische fachangestellte",
+      "frau.schmidt@praxis-example.de"
+    ]
+  },
+  {
+    "node_id": "worker_herr_mueller",
+    "type": "Worker",
+    "name": "Herr Müller",
+    "description": "Herr Müller ist Arzt. Telefon: +49 30 12345678.",
+    "role": "Arzt",
+    "phone": "+49 30 12345678",
+    "keywords": [
+      "herr müller",
+      "müller",
+      "arzt",
+      "+49 30 12345678"
+    ]
+  },
+  {
+    "node_id": "worker_herr_wagner",
+    "type": "Worker",
+    "name": "Herr Wagner",
+    "description": "Herr Wagner ist Arzt. Mobil: +49 151 11223344.",
+    "role": "Arzt",
+    "phone": "+49 151 11223344",
+    "keywords": [
+      "herr wagner",
+      "wagner",
+      "arzt",
+      "+49 151 11223344"
+    ]
+  }
+]

@@ -1,0 +1,34 @@
+[
+  {
+    "edge_id": "bauer__vertritt__schmidt",
+    "from_node_id": "worker_frau_bauer",
+    "to_node_id": "worker_frau_schmidt",
+    "type": "vertritt",
+    "label": "Frau Bauer vertritt Frau Schmidt bei Abwesenheit",
+    "description": "Frau Bauer vertritt Frau Schmidt bei Abwesenheit"
+  },
+  {
+    "edge_id": "mueller__vertritt__wagner",
+    "from_node_id": "worker_herr_mueller",
+    "to_node_id": "worker_herr_wagner",
+    "type": "vertritt",
+    "label": "Herr Müller vertritt Herrn Wagner bei Abwesenheit",
+    "description": "Herr Müller vertritt Herrn Wagner bei Abwesenheit"
+  },
+  {
+    "edge_id": "schmidt__vertritt__meier",
+    "from_node_id": "worker_frau_schmidt",
+    "to_node_id": "worker_frau_meier",
+    "type": "vertritt",
+    "label": "Frau Schmidt vertritt Frau Meier bei Abwesenheit",
+    "description": "Frau Schmidt vertritt Frau Meier bei Abwesenheit"
+  },
+  {
+    "edge_id": "wagner__vertritt__mueller",
+    "from_node_id": "worker_herr_wagner",
+    "to_node_id": "worker_herr_mueller",
+    "type": "vertritt",
+    "label": "Herr Wagner vertritt Herrn Müller bei Abwesenheit",
+    "description": "Herr Wagner vertritt Herrn Müller bei Abwesenheit"
+  }
+]

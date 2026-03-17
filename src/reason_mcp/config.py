@@ -112,6 +112,9 @@ class Config:
     praxis_vertex_specs: list[VertexSpec]
     praxis_edge_specs: list[EdgeSpec]
 
+    # Graph traversal depth — how many hops to follow when building context.
+    graph_traversal_depth: int
+
     # Retrieval defaults
     default_top_k: int
     min_relevance: float
@@ -151,6 +154,11 @@ class Config:
             )
         )
 
+        # --- Graph traversal ---
+        self.graph_traversal_depth = int(
+            os.environ.get("REASON_GRAPH_TRAVERSAL_DEPTH", "2")
+        )
+
         # --- Retrieval ---
         self.default_top_k = int(os.environ.get("REASON_DEFAULT_TOP_K", "3"))
         self.min_relevance = float(os.environ.get("REASON_MIN_RELEVANCE", "0.5"))
@@ -169,3 +177,25 @@ class Config:
 
 # Module-level singleton – import this wherever config is needed.
 config = Config()
+
+
+def reload_config() -> Config:
+    """Re-read environment variables and recreate the global config singleton.
+
+    Also clears the ArangoDB connection cache so new credentials / DB names
+    take effect on the next call.  Returns the new :class:`Config` instance.
+
+    Usage::
+
+        os.environ["REASON_PRAXIS_DB"] = "new_domain"
+        from reason_mcp.config import reload_config
+        cfg = reload_config()
+    """
+    global config
+    config = Config()
+    try:
+        from reason_mcp.knowledge.arango_client import invalidate_connection_cache
+        invalidate_connection_cache()
+    except ImportError:
+        pass
+    return config
